@@ -1,6 +1,7 @@
+<!-- Posted 2026-11-19: https://github.com/mathoudebine/turing-smart-screen-python/issues/7#issuecomment-7003732361 -->
 Another rev A unit (`1a86:5722`, serial `USB35INCHIPSV2`, TURZX-branded) working on macOS. I'm on an M4 Max, macOS 27, with the screen behind a USB-C dock. A few findings that might help this get merged.
 
-**1. Raw USB works without root.** I used the bulk endpoint approach from @marcelors27 and @amarok30. On my machine `detach_kernel_driver()` fails with `Access denied`, but `claim_interface(1)` succeeds anyway with the CDC driver still attached, and writes to endpoint `0x03` draw perfectly. So a macOS backend doesn't need sudo or a special entitlement.
+**1. Raw USB works without root.** I used the bulk endpoint approach from marcelors27 and amarok30. On my machine `detach_kernel_driver()` fails with `Access denied`, but `claim_interface(1)` succeeds anyway with the CDC driver still attached, and writes to endpoint `0x03` draw perfectly. So a macOS backend doesn't need sudo or a special entitlement.
 
 **2. Why the serial path corrupts, as seen on this unit.** Before finding this thread I worked it out from photos of test patterns. The firmware draws **every USB packet as 64 bytes (32 px), whatever its real length**:
 
