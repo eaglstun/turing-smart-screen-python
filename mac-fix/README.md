@@ -81,4 +81,12 @@ segments of `WRITE_PIXELS` (default 160, override with env `TURZX_WRITE_PIXELS`)
 - **Disk (fixed):** on macOS `/` is the sealed system volume. The sensors now read
   `/System/Volumes/Data` and count used = total - free for the whole APFS
   container, as Finder does.
-- The GPU panel is still empty (only NVIDIA/AMD are supported).
+- **GPU (added):** `GpuType.APPLE`: load and in-use memory from the IOAccelerator
+  `PerformanceStatistics`, frequency from IOReport (`GPUPH` over `pmgr`
+  `voltage-states9`), temperature = average of the SMC `Tg*` sensors.
+- **CPU temperature (added):** average of the SMC `Tp*`/`Te*` core sensors. Parked
+  cores report exactly 40.0 and are skipped. This reads lower than the hottest
+  core when only a few cores are busy.
+- SMC keys are discovered from the SMC's own key table, because names change
+  between chip generations. Everything above works without sudo
+  (`library/sensors/apple_silicon.py`).
