@@ -53,4 +53,11 @@ segments of `WRITE_PIXELS` (default 160, override with env `TURZX_WRITE_PIXELS`)
       31-pixel layout, including partial updates (framebuffer + grid alignment).
 - [x] Skip `Reset()` on startup (`RESET_ON_STARTUP: false`).
 - [x] Reduce the hairlines (10 → 2 columns).
-- [ ] Run a real theme with `main.py`.
+- [x] Run a real theme with `main.py` (`3.5inchTheme2`): draws cleanly.
+      Ctrl+C stops it; `timeout`'s SIGTERM does not (the tray icon holds the main thread).
+
+## Known stats gaps on Apple Silicon (not screen issues)
+
+- CPU frequency shows 0.00 GHz.
+- The GPU panel is empty (only NVIDIA/AMD are supported).
+- Disk "Used" reads only the small APFS system volume.
