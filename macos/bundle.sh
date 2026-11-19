@@ -1,6 +1,7 @@
 #!/bin/sh
 # Builds TuringScreen.app (menu bar app) into macos/build/: release binary, the 3.5" themes and only the fonts they
 # use, Info.plist with LSUIElement (no Dock icon), ad-hoc signature.
+# Usage: bundle.sh [--install]   --install also copies it to ~/Applications (quitting a running copy first)
 set -e
 cd "$(dirname "$0")"
 REPO="$(cd .. && pwd)"
@@ -52,3 +53,13 @@ PLIST
 
 codesign --force --sign - "$APP" >/dev/null
 echo "$APP: $(du -sh "$APP" | cut -f1), $(ls "$APP/Contents/Resources/res/themes" | grep -vc yaml) themes, $(find "$APP/Contents/Resources/res/fonts" -type f | wc -l | tr -d ' ') fonts"
+
+if [ "$1" = "--install" ]; then
+    DEST="$HOME/Applications/TuringScreen.app"
+    osascript -e 'quit app id "local.turingscreen"' 2>/dev/null && sleep 2 || true
+    mkdir -p "$HOME/Applications"
+    rm -rf "$DEST"
+    cp -R "$APP" "$DEST"
+    echo "installed to $DEST"
+    open "$DEST"
+fi

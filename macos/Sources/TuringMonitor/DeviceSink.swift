@@ -36,6 +36,12 @@ public final class DeviceSink: DisplaySink {
 
     public func disconnect() { display = nil }
 
+    /// Backlight off / on (the last frame stays in the panel's memory).
+    public func setScreen(on: Bool) {
+        guard let display else { return }
+        do { try on ? display.screenOn() : display.screenOff() } catch { fail(error) }
+    }
+
     public func setBrightness(_ percent: Int) {
         guard let display else { return }
         do { try display.setBrightness(percent) } catch { fail(error) }

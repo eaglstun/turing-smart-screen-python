@@ -4,11 +4,30 @@ import SwiftUI
 struct SettingsView: View {
     var body: some View {
         TabView {
+            GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
             ThemeGallery().tabItem { Label("Themes", systemImage: "square.grid.2x2") }
             DisplaySettings().tabItem { Label("Display", systemImage: "display") }
             NetworkSettings().tabItem { Label("Network", systemImage: "network") }
         }
         .frame(width: 640, height: 520)
+    }
+}
+
+struct GeneralSettings: View {
+    @EnvironmentObject var model: AppModel
+
+    var body: some View {
+        Form {
+            Toggle("Open at login", isOn: Binding(get: { model.launchAtLogin }, set: { model.launchAtLogin = $0 }))
+            if let error = model.loginItemError {
+                Text(error).font(.caption).foregroundStyle(.red)
+            }
+            Toggle("Turn the display off while the Mac sleeps", isOn: $model.sleepWithMac)
+            Text("Also when the Mac's displays sleep. On wake the display reconnects and redraws.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .formStyle(.grouped)
+        .padding()
     }
 }
 
