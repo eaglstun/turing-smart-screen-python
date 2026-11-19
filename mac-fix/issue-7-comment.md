@@ -1,4 +1,4 @@
-<!-- Posted 2026-11-19, edited to link PR #1138: https://github.com/mathoudebine/turing-smart-screen-python/issues/7#issuecomment-7003732361 -->
+<!-- Posted 2026-11-19, edited to link PRs #1138 and #1139: https://github.com/mathoudebine/turing-smart-screen-python/issues/7#issuecomment-7003732361 -->
 **Update:** PR #1138 adds the USB bulk fix below as an opt-in `USB_BULK` option.
 
 Another rev A unit (`1a86:5722`, serial `USB35INCHIPSV2`, TURZX-branded) working on macOS. I'm on an M4 Max, macOS 27, with the screen behind a USB-C dock. A few findings that might help this get merged.
@@ -20,6 +20,6 @@ Two smaller things:
 
 - `Reset()` on startup left my unit ignoring draw commands until it was replugged. `RESET_ON_STARTUP: false` avoids that.
 - The same unit draws correctly on **Raspberry Pi OS through the stock serial path**, with no workarounds. That confirms this is specific to macOS's serial driver.
-- Unrelated to the display, but needed for a usable Mac theme: on Apple Silicon `psutil.cpu_freq()` returns placeholders (the theme shows 0.00 GHz), and `disk_usage("/")` reads the sealed system volume. I read live per-cluster frequency from IOReport (no root, residency-weighted over the `pmgr` DVFS tables) and use `/System/Volumes/Data` for disk. I've since added GPU load, memory, frequency and temperature, plus CPU temperature, from IOAccelerator, IOReport and the SMC. SMC sensor keys are found from the SMC's own key table, because the M1–M3 names don't all exist on M4, and parked cores read a 40.0 °C placeholder. That overlaps #977, so I've kept it out of #1138. Happy to send it separately if it's useful.
+- Unrelated to the display, but needed for a usable Mac theme: on Apple Silicon `psutil.cpu_freq()` returns placeholders (the theme shows 0.00 GHz), and `disk_usage("/")` reads the sealed system volume. I read live per-cluster frequency from IOReport (no root, residency-weighted over the `pmgr` DVFS tables) and use `/System/Volumes/Data` for disk. I've since added GPU load, memory, frequency and temperature, plus CPU temperature, from IOAccelerator, IOReport and the SMC. SMC sensor keys are found from the SMC's own key table, because the M1–M3 names don't all exist on M4, and parked cores read a 40.0 °C placeholder. That overlaps #977, so I've kept it out of #1138 and sent it separately as #1139.
 
 **PR #1138** adds the USB bulk transport as `USB_BULK` under `REVISION: A` (default `false`; `configure.py`'s revision map untouched), falling back to the serial port if the device can't be opened over USB. The serial 62-byte workaround from point 4 is left out to keep it small.
