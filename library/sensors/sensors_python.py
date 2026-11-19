@@ -22,6 +22,7 @@
 # For all platforms (Linux, Windows, macOS) but not all HW is supported
 
 import math
+import os
 import platform
 import sys
 from collections import namedtuple
@@ -119,6 +120,24 @@ def is_cpu_fan(label: str) -> bool:
     return ("cpu" in label.lower()) or ("proc" in label.lower())
 
 
+_APPLE_CPU_FREQ = None
+_APPLE_CPU_FREQ_TRIED = False
+
+
+def _apple_cpu_freq():
+    # psutil.cpu_freq() returns placeholder values on Apple Silicon: read IOReport instead
+    global _APPLE_CPU_FREQ, _APPLE_CPU_FREQ_TRIED
+    if not _APPLE_CPU_FREQ_TRIED:
+        _APPLE_CPU_FREQ_TRIED = True
+        if platform.system() == "Darwin" and platform.machine() == "arm64":
+            try:
+                from library.sensors.apple_cpu_freq import AppleCpuFrequency
+                _APPLE_CPU_FREQ = AppleCpuFrequency()
+            except Exception as e:
+                logger.warning(f"Apple Silicon CPU frequency unavailable: {e}")
+    return _APPLE_CPU_FREQ
+
+
 class Cpu(sensors.Cpu):
     @staticmethod
     def percentage(interval: float) -> float:
@@ -129,6 +148,10 @@ class Cpu(sensors.Cpu):
 
     @staticmethod
     def frequency() -> float:
+        apple = _apple_cpu_freq()
+        if apple is not None:
+            mhz = apple.current_mhz()
+            return mhz if mhz is not None else math.nan
         try:
             return psutil.cpu_freq().current
         except:
@@ -451,25 +474,39 @@ class Memory(sensors.Memory):
             return -1
 
 
+# On macOS, "/" is the small sealed system volume; user data lives on the Data volume of the same APFS
+# container. There, used space is reported container-wide (total - free), as Finder does.
+_DISK_PATH = "/System/Volumes/Data" if platform.system() == "Darwin" and os.path.isdir(
+    "/System/Volumes/Data") else "/"
+
+
+def _disk_used_free_percent():
+    usage = psutil.disk_usage(_DISK_PATH)
+    if _DISK_PATH == "/":
+        return usage.used, usage.free, usage.percent
+    used = usage.total - usage.free
+    return used, usage.free, used / usage.total * 100
+
+
 class Disk(sensors.Disk):
     @staticmethod
     def disk_usage_percent() -> float:
         try:
-            return psutil.disk_usage("/").percent
+            return _disk_used_free_percent()[2]
         except:
             return math.nan
 
     @staticmethod
     def disk_used() -> int:  # In bytes
         try:
-            return psutil.disk_usage("/").used
+            return _disk_used_free_percent()[0]
         except:
             return -1
 
     @staticmethod
     def disk_free() -> int:  # In bytes
         try:
-            return psutil.disk_usage("/").free
+            return _disk_used_free_percent()[1]
         except:
             return -1
 

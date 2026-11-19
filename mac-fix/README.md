@@ -56,8 +56,14 @@ segments of `WRITE_PIXELS` (default 160, override with env `TURZX_WRITE_PIXELS`)
 - [x] Run a real theme with `main.py` (`3.5inchTheme2`): draws cleanly.
       Ctrl+C stops it; `timeout`'s SIGTERM does not (the tray icon holds the main thread).
 
-## Known stats gaps on Apple Silicon (not screen issues)
+## Stats on Apple Silicon
 
-- CPU frequency shows 0.00 GHz.
-- The GPU panel is empty (only NVIDIA/AMD are supported).
-- Disk "Used" reads only the small APFS system volume.
+- **CPU frequency (fixed):** `psutil.cpu_freq()` returns placeholders on Apple
+  Silicon. `library/sensors/apple_cpu_freq.py` reads the private IOReport framework
+  (no sudo, like `macmon`). It reports the busiest cluster's residency-weighted
+  average frequency since the last sample, using DVFS tables from the `pmgr`
+  IORegistry entry.
+- **Disk (fixed):** on macOS `/` is the sealed system volume. The sensors now read
+  `/System/Volumes/Data` and count used = total - free for the whole APFS
+  container, as Finder does.
+- The GPU panel is still empty (only NVIDIA/AMD are supported).
