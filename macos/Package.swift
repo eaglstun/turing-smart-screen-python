@@ -20,6 +20,8 @@ let package = Package(
         // Update loop: live sensors -> theme -> changed regions -> display sink, on each stat's interval
         .target(name: "TuringMonitor", dependencies: ["TuringSensors", "TuringTheme", "TuringDevice"],
                 path: "Sources/TuringMonitor"),
+        // The menu bar app (SwiftUI): status, live preview, theme picker, brightness, settings
+        .executableTarget(name: "TuringScreen", dependencies: ["TuringMonitor"], path: "Sources/TuringScreen"),
         // Runs the monitor headless for testing (PNG output, update statistics)
         .executableTarget(name: "MonitorCLI", dependencies: ["TuringMonitor"], path: "Sources/MonitorCLI"),
         // Command-line probe: prints every reading, for checking against the Python sensors

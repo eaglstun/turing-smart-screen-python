@@ -155,6 +155,12 @@ public enum Net {
         return result.mapValues { (sent: $0.0, received: $0.1) }
     }
 
+    /// Interfaces that have carried traffic, busiest first (for picking the Wi-Fi / Ethernet interface).
+    public static func activeInterfaces() -> [String] {
+        counters().filter { $0.value.received + $0.value.sent > 0 && !$0.key.hasPrefix("lo") }
+            .sorted { $0.value.received + $0.value.sent > $1.value.received + $1.value.sent }.map(\.key)
+    }
+
     /// (upload rate B/s, uploaded B, download rate B/s, downloaded B) for one interface since the previous call.
     public static func stats(interface: String) -> (uploadRate: Double, uploaded: UInt64, downloadRate: Double, downloaded: UInt64)? {
         guard !interface.isEmpty, let c = counters()[interface] else { return nil }

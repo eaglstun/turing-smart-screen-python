@@ -78,6 +78,17 @@ public final class Monitor {
         sinkQueue.sync {}  // let pending writes finish
     }
 
+    /// A copy of the current screen, delivered on the main queue (for a live preview).
+    public func snapshot(_ completion: @escaping (Bitmap) -> Void) {
+        queue.async { [self] in
+            let copy = renderer.screen
+            DispatchQueue.main.async { completion(copy) }
+        }
+    }
+
+    /// Runs a block on the sink queue, after any pending writes (e.g. to reconfigure the display).
+    public func onSinkQueue(_ block: @escaping () -> Void) { sinkQueue.async(execute: block) }
+
     /// Redraws everything (e.g. after the display reconnects).
     public func redrawAll() {
         queue.async { [self] in
