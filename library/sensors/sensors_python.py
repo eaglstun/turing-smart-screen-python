@@ -139,6 +139,29 @@ def _apple_cpu_freq():
     return _APPLE_CPU_FREQ
 
 
+_APPLE_CPU_TEMP = None
+_APPLE_CPU_TEMP_TRIED = False
+
+
+def _apple_cpu_temperature():
+    # psutil has no temperatures on macOS: on Apple Silicon, average the SMC CPU core sensors
+    # ("Tp" = performance cores, "Te" = efficiency cores). Returns a callable, or None if unavailable.
+    global _APPLE_CPU_TEMP, _APPLE_CPU_TEMP_TRIED
+    if not _APPLE_CPU_TEMP_TRIED:
+        _APPLE_CPU_TEMP_TRIED = True
+        if platform.system() == "Darwin" and platform.machine() == "arm64":
+            try:
+                from library.sensors.apple_silicon import AppleSmc
+                smc = AppleSmc()
+                keys = smc.temperature_sensors("Tp") + smc.temperature_sensors("Te")
+                if keys:
+                    logger.info(f"Apple Silicon CPU temperature: averaging {len(keys)} SMC sensors")
+                    _APPLE_CPU_TEMP = lambda: smc.average(keys)
+            except Exception as e:
+                logger.warning(f"Apple Silicon CPU temperature unavailable: {e}")
+    return _APPLE_CPU_TEMP
+
+
 class Cpu(sensors.Cpu):
     @staticmethod
     def percentage(interval: float) -> float:
@@ -168,6 +191,10 @@ class Cpu(sensors.Cpu):
     @staticmethod
     def temperature() -> float:
         cpu_temp = math.nan
+        apple = _apple_cpu_temperature()
+        if apple is not None:
+            temp = apple()
+            return temp if temp is not None else math.nan
         try:
             sensors_temps = psutil.sensors_temperatures()
             if 'coretemp' in sensors_temps:

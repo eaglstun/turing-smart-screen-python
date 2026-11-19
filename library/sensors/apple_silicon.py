@@ -330,9 +330,14 @@ class AppleSmc:
         return found
 
     def temperature_sensors(self, prefix: str) -> List[str]:
-        """Keys under prefix that currently read as a plausible temperature."""
-        return [k for k in self.keys(prefix) if (v := self.read_float(k)) is not None and 0 < v < 130]
+        """Float keys under prefix. Not filtered on their current value: sensors of powered-down cores read
+        0 or a placeholder until the core wakes up."""
+        return [k for k in self.keys(prefix) if self.read_float(k) is not None]
+
+    # Sensors of parked CPU cores report exactly 40.0 until the core wakes up; real readings have decimals
+    _PLACEHOLDER = 40.0
 
     def average(self, keys: List[str]) -> Optional[float]:
-        values = [v for k in keys if (v := self.read_float(k)) is not None and 0 < v < 130]
+        values = [v for k in keys
+                  if (v := self.read_float(k)) is not None and 0 < v < 130 and v != self._PLACEHOLDER]
         return sum(values) / len(values) if values else None
