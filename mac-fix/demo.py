@@ -1,6 +1,6 @@
 """Demo of the patched rev A driver (packet_fix): background, text, then a ticking clock.
 
-Usage: demo.py [seconds]   (default 20)
+Usage: demo.py [seconds] [usb]   (default 20 s; "usb" = raw USB bulk transport instead of the serial port)
 Runs from any directory; does not Reset() the screen.
 """
 import os
@@ -17,7 +17,11 @@ from library.lcd.lcd_comm_rev_a import LcdCommRevA
 
 SECONDS = float(sys.argv[1]) if len(sys.argv) > 1 else 20
 
-lcd = LcdCommRevA(com_port="AUTO", packet_fix=True)
+if "usb" in sys.argv[2:]:
+    from library.lcd.lcd_comm_rev_a_usb import LcdCommRevAUsb
+    lcd = LcdCommRevAUsb()
+else:
+    lcd = LcdCommRevA(com_port="AUTO", packet_fix=True)
 lcd.InitializeComm()
 lcd.SetBrightness(level=15)
 lcd.SetOrientation(Orientation.PORTRAIT)

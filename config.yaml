@@ -82,3 +82,7 @@ display:
   # Rev. A only: workaround for TURZX 3.5" units whose firmware draws every USB packet as 64 bytes.
   # Symptoms without it: staircase/slanted images, doubled passes. See mac-fix/README.md
   PACKET_FIX: true
+
+  # Rev. A only: send to the display over raw USB (PyUSB/libusb, endpoint 0x03) instead of the serial port.
+  # Fixes corrupted images on macOS with no hairlines (issue #7). Falls back to the serial port if unavailable.
+  USB_BULK: true
