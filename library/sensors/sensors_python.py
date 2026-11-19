@@ -56,6 +56,7 @@ class GpuType(IntEnum):
     UNSUPPORTED = auto()
     AMD = auto()
     NVIDIA = auto()
+    APPLE = auto()
 
 
 DETECTED_GPU = GpuType.UNSUPPORTED
@@ -131,7 +132,7 @@ def _apple_cpu_freq():
         _APPLE_CPU_FREQ_TRIED = True
         if platform.system() == "Darwin" and platform.machine() == "arm64":
             try:
-                from library.sensors.apple_cpu_freq import AppleCpuFrequency
+                from library.sensors.apple_silicon import AppleCpuFrequency
                 _APPLE_CPU_FREQ = AppleCpuFrequency()
             except Exception as e:
                 logger.warning(f"Apple Silicon CPU frequency unavailable: {e}")
@@ -213,6 +214,8 @@ class Gpu(sensors.Gpu):
             return GpuAmd.stats()
         elif DETECTED_GPU == GpuType.NVIDIA:
             return GpuNvidia.stats()
+        elif DETECTED_GPU == GpuType.APPLE:
+            return GpuApple.stats()
         else:
             return math.nan, math.nan, math.nan, math.nan, math.nan
 
@@ -240,6 +243,8 @@ class Gpu(sensors.Gpu):
             return GpuAmd.frequency()
         elif DETECTED_GPU == GpuType.NVIDIA:
             return GpuNvidia.frequency()
+        elif DETECTED_GPU == GpuType.APPLE:
+            return GpuApple.frequency()
         else:
             return math.nan
 
@@ -254,6 +259,10 @@ class Gpu(sensors.Gpu):
         elif GpuAmd.is_available():
             logger.info("Detected AMD GPU(s)")
             DETECTED_GPU = GpuType.AMD
+        # Apple Silicon integrated GPU
+        elif GpuApple.is_available():
+            logger.info("Detected Apple Silicon GPU")
+            DETECTED_GPU = GpuType.APPLE
         else:
             logger.warning("No supported GPU found")
             DETECTED_GPU = GpuType.UNSUPPORTED
@@ -262,6 +271,55 @@ class Gpu(sensors.Gpu):
                                "https://github.com/mathoudebine/turing-smart-screen-python/wiki/Troubleshooting#linux--macos-no-supported-gpu-found-with-an-amd-gpu-and-python-311")
 
         return DETECTED_GPU != GpuType.UNSUPPORTED
+
+
+_APPLE_GPU = None
+
+
+class GpuApple(sensors.Gpu):
+    # Apple Silicon integrated GPU: load / memory from IOAccelerator, frequency from IOReport (no sudo).
+    # Memory is unified: "total" is the system RAM the GPU shares.
+    @staticmethod
+    def stats() -> Tuple[
+        float, float, float, float, float]:  # load (%) / used mem (%) / used mem (Mb) / total mem (Mb) / temp (°C)
+        try:
+            perf = _APPLE_GPU.performance_statistics()
+            load = float(perf.get("Device Utilization %", math.nan))
+            used_mb = perf.get("In use system memory", math.nan) / 1024 ** 2
+            total_mb = psutil.virtual_memory().total / 1024 ** 2
+            temp = _APPLE_GPU.temperature()
+            return load, used_mb / total_mb * 100, used_mb, total_mb, temp if temp is not None else math.nan
+        except:
+            return math.nan, math.nan, math.nan, math.nan, math.nan
+
+    @staticmethod
+    def fps() -> int:
+        return -1
+
+    @staticmethod
+    def fan_percent() -> float:
+        return math.nan
+
+    @staticmethod
+    def frequency() -> float:
+        try:
+            mhz = _APPLE_GPU.frequency_mhz()
+            return mhz if mhz is not None else 0.0  # GPU powered off for the whole interval
+        except:
+            return math.nan
+
+    @staticmethod
+    def is_available() -> bool:
+        global _APPLE_GPU
+        if platform.system() != "Darwin" or platform.machine() != "arm64":
+            return False
+        try:
+            from library.sensors.apple_silicon import AppleGpu
+            _APPLE_GPU = AppleGpu()
+            return True
+        except Exception as e:
+            logger.warning(f"Apple Silicon GPU sensors unavailable: {e}")
+            return False
 
 
 class GpuNvidia(sensors.Gpu):
