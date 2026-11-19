@@ -26,7 +26,20 @@ until it is unplugged and plugged back in.
    pixels)**, about 1 ms apart. The firmware's junk 32nd pixel lands on columns
    `x % 32 == 31`, so the only visible damage is faint hairlines.
 
-A full frame takes about 4.8 s at 1 ms per packet.
+A full frame takes about 4.8 s at 1 ms per packet. Waiting for each write to drain
+(`flush`) instead of pausing is enough, and brings it down to about 1.9 s.
+
+## Fewer hairlines
+
+A write can also carry several full 64-byte packets plus one final 62-byte packet.
+Only that last packet leaves a junk pixel. The driver (`PACKET_FIX`) sends rows in
+segments of `WRITE_PIXELS` (default 160, override with env `TURZX_WRITE_PIXELS`):
+
+| Pixels per write | Write size | Result |
+|---|---|---|
+| 32 | 62 B | works, 10 hairline columns |
+| 160 | 318 B | works, 2 hairline columns (x = 159, 319) |
+| 320 | 638 B | garbage, then black; macOS seems to split the write |
 
 ## Also avoid
 
@@ -35,8 +48,9 @@ A full frame takes about 4.8 s at 1 ms per packet.
 
 ## To do
 
-- [ ] Find the smallest safe pause between packets.
-- [ ] Patch `library/lcd/lcd_comm_rev_a.py` `DisplayPILImage` to use the
-      31-pixel layout, including partial updates (keep blocks 32-px aligned).
-- [ ] Skip `Reset()` on startup (`RESET_ON_STARTUP: false`).
-- [ ] Try to get rid of the hairlines.
+- [x] Find the smallest safe pause between packets (none; flush each write).
+- [x] Patch `library/lcd/lcd_comm_rev_a.py` `DisplayPILImage` to use the
+      31-pixel layout, including partial updates (framebuffer + grid alignment).
+- [x] Skip `Reset()` on startup (`RESET_ON_STARTUP: false`).
+- [x] Reduce the hairlines (10 → 2 columns).
+- [ ] Run a real theme with `main.py`.

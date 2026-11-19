@@ -18,6 +18,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import os
 import time
 from enum import Enum
 from typing import Optional
@@ -60,6 +61,10 @@ class LcdCommRevA(LcdComm):
     # 64-multiple write is drawn as a duplicate. With packet_fix, bitmaps are sent as 62-byte packets
     # (31 real px) on a 32-px grid so the junk pixel always lands on columns x % 32 == 31.
     PACKET_PIXELS = 32
+    # Pixels drawn per write (a multiple of 32). Each write is sent as full 64-byte packets plus one
+    # 62-byte packet, so only its last pixel is junk. 32 = one junk pixel every 32 columns; larger values
+    # send whole rows split into segments of this size, putting junk only at each segment's last column.
+    WRITE_PIXELS = int(os.environ.get("TURZX_WRITE_PIXELS", "160"))
 
     def __init__(self, com_port: str = "AUTO", display_width: int = 320, display_height: int = 480,
                  update_queue: Optional[queue.Queue] = None, packet_fix: bool = False):
@@ -242,22 +247,27 @@ class LcdCommRevA(LcdComm):
             self._framebuffer = Image.new("RGB", (width, height), (0, 0, 0))
         self._framebuffer.paste(image.convert("RGB"), (x, y))
 
-        # Widen the update horizontally to whole 32-px blocks, filling in from the framebuffer
+        # Widen the update horizontally, filling in from the framebuffer: to whole 32-px blocks, or to
+        # full rows when writes span several packets, so junk pixels always land on the same columns
         p = self.PACKET_PIXELS
-        ax0 = (x // p) * p
-        ax1 = min(-(-(x + image.size[0]) // p) * p, width)
+        seg = max(p, (self.WRITE_PIXELS // p) * p)
+        if seg > p:
+            ax0, ax1 = 0, width
+        else:
+            ax0 = (x // p) * p
+            ax1 = min(-(-(x + image.size[0]) // p) * p, width)
         y1 = y + image.size[1]
         region = self._framebuffer.crop((ax0, y, ax1, y1))
         rgb565le = image_to_RGB565(region, "little")
 
-        # One packet per 32-px block: its first 31 px (62 bytes). The firmware draws 32 px per packet,
-        # the 32nd being stale junk, which lands on the block's last column.
+        # One write per segment, minus its last pixel: the firmware draws 32 px per USB packet, so the
+        # final 62-byte packet's missing 32nd pixel is filled with stale junk on the segment's last column.
         row_bytes = (ax1 - ax0) * 2
         packets = []
         for row in range(y1 - y):
             line = rgb565le[row * row_bytes:(row + 1) * row_bytes]
-            for bx in range(0, row_bytes, p * 2):
-                packets.append(line[bx:bx + (p - 1) * 2])
+            for bx in range(0, row_bytes, seg * 2):
+                packets.append(line[bx:min(bx + seg * 2, row_bytes) - 2])
 
         header = bytearray(6)
         header[0] = (ax0 >> 2)
