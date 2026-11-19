@@ -55,10 +55,20 @@ class SubRevision(Enum):
 
 # This class is for Turing Smart Screen (rev. A) 3.5" and UsbMonitor screens (all sizes)
 class LcdCommRevA(LcdComm):
+    # Some TURZX 3.5" units draw every USB packet as 64 bytes (32 px) whatever its real length:
+    # short packets are padded with stale bytes, and the zero-length packet the host sends after a
+    # 64-multiple write is drawn as a duplicate. With packet_fix, bitmaps are sent as 62-byte packets
+    # (31 real px) on a 32-px grid so the junk pixel always lands on columns x % 32 == 31.
+    PACKET_PIXELS = 32
+
     def __init__(self, com_port: str = "AUTO", display_width: int = 320, display_height: int = 480,
-                 update_queue: Optional[queue.Queue] = None):
+                 update_queue: Optional[queue.Queue] = None, packet_fix: bool = False):
         logger.debug("HW revision: A")
         LcdComm.__init__(self, com_port, display_width, display_height, update_queue)
+        self.packet_fix = packet_fix
+        self._framebuffer = None  # copy of the screen contents, used to widen updates to the 32-px grid
+        if packet_fix:
+            logger.debug("Packet fix enabled: 31 px per USB packet on a 32-px grid")
         self.openSerial()
 
     def __del__(self):
@@ -174,6 +184,10 @@ class LcdCommRevA(LcdComm):
         byteBuffer[9] = (height >> 8)
         byteBuffer[10] = (height & 255)
         self.serial_write(bytes(byteBuffer))
+        if self.packet_fix:
+            self.lcd_serial.flush()
+            time.sleep(0.010)  # the vendor app pauses 10 ms after this command
+            self._framebuffer = Image.new("RGB", (width, height), (0, 0, 0))
 
     def DisplayPILImage(
             self,
@@ -205,6 +219,10 @@ class LcdCommRevA(LcdComm):
         assert image_height > 0, 'Image height must be > 0'
         assert image_width > 0, 'Image width must be > 0'
 
+        if self.packet_fix:
+            self._display_pil_image_packet_fix(image, x, y)
+            return
+
         (x0, y0) = (x, y)
         (x1, y1) = (x + image_width - 1, y + image_height - 1)
 
@@ -217,3 +235,49 @@ class LcdCommRevA(LcdComm):
             # Send image data by multiple of "display width" bytes
             for chunk in chunked(rgb565le, width * 8):
                 self.SendLine(chunk)
+
+    def _display_pil_image_packet_fix(self, image: Image.Image, x: int, y: int):
+        width, height = self.get_width(), self.get_height()
+        if self._framebuffer is None or self._framebuffer.size != (width, height):
+            self._framebuffer = Image.new("RGB", (width, height), (0, 0, 0))
+        self._framebuffer.paste(image.convert("RGB"), (x, y))
+
+        # Widen the update horizontally to whole 32-px blocks, filling in from the framebuffer
+        p = self.PACKET_PIXELS
+        ax0 = (x // p) * p
+        ax1 = min(-(-(x + image.size[0]) // p) * p, width)
+        y1 = y + image.size[1]
+        region = self._framebuffer.crop((ax0, y, ax1, y1))
+        rgb565le = image_to_RGB565(region, "little")
+
+        # One packet per 32-px block: its first 31 px (62 bytes). The firmware draws 32 px per packet,
+        # the 32nd being stale junk, which lands on the block's last column.
+        row_bytes = (ax1 - ax0) * 2
+        packets = []
+        for row in range(y1 - y):
+            line = rgb565le[row * row_bytes:(row + 1) * row_bytes]
+            for bx in range(0, row_bytes, p * 2):
+                packets.append(line[bx:bx + (p - 1) * 2])
+
+        header = bytearray(6)
+        header[0] = (ax0 >> 2)
+        header[1] = (((ax0 & 3) << 6) + (y >> 4))
+        header[2] = (((y & 15) << 4) + ((ax1 - 1) >> 6))
+        header[3] = ((((ax1 - 1) & 63) << 2) + ((y1 - 1) >> 8))
+        header[4] = ((y1 - 1) & 255)
+        header[5] = Command.DISPLAY_BITMAP
+
+        if self.update_queue:
+            with self.update_queue_mutex:
+                self.update_queue.put((self._send_packets, [bytes(header), packets]))
+        else:
+            self._send_packets(bytes(header), packets)
+
+    def _send_packets(self, header: bytes, packets: list):
+        # Each packet must reach the device as its own USB packet: write, then wait for it to drain
+        self.serial_write(header)
+        self.lcd_serial.flush()
+        time.sleep(0.010)  # the vendor app pauses 10 ms between the header and the pixel data
+        for packet in packets:
+            self.serial_write(packet)
+            self.lcd_serial.flush()

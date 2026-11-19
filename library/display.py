@@ -90,7 +90,8 @@ class Display:
         width, height = _get_theme_size()
         if config.CONFIG_DATA["display"]["REVISION"] == "A":
             self.lcd = LcdCommRevA(com_port=config.CONFIG_DATA['config']['COM_PORT'],
-                                   update_queue=config.update_queue)
+                                   update_queue=config.update_queue,
+                                   packet_fix=config.CONFIG_DATA["display"].get("PACKET_FIX", False))
         elif config.CONFIG_DATA["display"]["REVISION"] == "B":
             self.lcd = LcdCommRevB(com_port=config.CONFIG_DATA['config']['COM_PORT'],
                                    update_queue=config.update_queue)
