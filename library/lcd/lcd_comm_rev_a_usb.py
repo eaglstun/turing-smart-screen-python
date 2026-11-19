@@ -8,10 +8,15 @@
 # On macOS, sending through the CDC serial device (/dev/cu.usbmodem...) corrupts images on Turing / UsbMonitor
 # 3.5" units (1a86:5722): the panel firmware works per USB transfer/packet, and the macOS serial path re-packs the
 # byte stream. Writing directly to the bulk OUT endpoint, as the vendor Windows app does, draws correctly.
-# Approach from issue #7 (@marcelors27, @amarok30); see mac-fix/README.md.
+# Approach from issue #7 (findings by marcelors27 and amarok30).
 #
-# Every command goes in its own transfer. Bitmaps are widened to the 32-px grid (from a framebuffer copy of the
-# screen) so pixel data is always whole 64-byte packets and exactly w*h*2 bytes.
+# Observed on a 1a86:5722 unit: the firmware handles pixel data per 64-byte USB packet. A short packet is drawn
+# padded with stale bytes, and the zero-length packet macOS sends after a write that is a multiple of 64 bytes is
+# drawn as a duplicate. So every command goes in its own transfer, and bitmaps are widened to the 32-px grid
+# (from a framebuffer copy of the screen) so pixel data is always whole 64-byte packets and exactly w*h*2 bytes.
+#
+# On macOS, detaching the kernel CDC driver needs root, but claiming the data interface works without it.
+# Requires libusb (e.g. `brew install libusb`) and pyusb (already in requirements.txt).
 
 import time
 from typing import Optional
@@ -32,9 +37,12 @@ CHUNK = 4096  # multiple of 64
 
 
 class LcdCommRevAUsb(LcdCommRevA):
+    PACKET_PIXELS = 32  # 64-byte USB packet = 32 RGB565 pixels
+
     def __init__(self, display_width: int = 320, display_height: int = 480,
                  update_queue: Optional[queue.Queue] = None):
         self.usb_dev = None
+        self._framebuffer = None  # copy of the screen contents, used to widen updates to the 32-px grid
         LcdCommRevA.__init__(self, "AUTO", display_width, display_height, update_queue)
 
     def __del__(self):
@@ -97,6 +105,11 @@ class LcdCommRevAUsb(LcdCommRevA):
             self.serial_write(line)
 
     # --- commands ---
+
+    def Reset(self):
+        # Not sent over USB bulk: once the panel's pixel counter is out of sync it swallows commands (RESET included)
+        # as pixel data, so a reset cannot recover it. Unplugging / replugging the display does.
+        logger.info("USB bulk transport: skipping display reset (unplug/replug the display to recover it)")
 
     def SetOrientation(self, orientation: Orientation = Orientation.PORTRAIT):
         self.orientation = orientation
