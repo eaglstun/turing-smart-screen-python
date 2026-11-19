@@ -17,6 +17,7 @@ public final class Monitor {
     private let queue = DispatchQueue(label: "monitor.render")
     private let sinkQueue = DispatchQueue(label: "monitor.sink")
     private var timers: [DispatchSourceTimer] = []
+    private var started = false, gpuAvailable = true
     public weak var sink: DisplaySink?
 
     /// Update counters, for status display and tests.
@@ -53,6 +54,8 @@ public final class Monitor {
     /// Draws the static content, sends a full frame, then starts every stat's timer.
     public func start(gpuAvailable: Bool = true) {
         queue.async { [self] in
+            started = true
+            self.gpuAvailable = gpuAvailable
             renderer.displayStaticImages()
             renderer.displayStaticText()
             renderer.dirty = [Rect(x0: 0, y0: 0, x1: renderer.width, y1: renderer.height)]
@@ -72,6 +75,7 @@ public final class Monitor {
 
     public func stop() {
         queue.sync {
+            started = false
             timers.forEach { $0.cancel() }
             timers.removeAll()
         }
@@ -92,6 +96,22 @@ public final class Monitor {
     /// Redraws everything (e.g. after the display reconnects).
     public func redrawAll() {
         queue.async { [self] in
+            renderer.dirty = [Rect(x0: 0, y0: 0, x1: renderer.width, y1: renderer.height)]
+            flush()
+        }
+    }
+
+    /// macOS look for themes with a `display: MACOS:` section: the desktop wallpaper (an image file, decoded here off
+    /// the main thread; nil = the theme's own background) and the system accent color. Can be called before
+    /// `start()`; once running, everything is redrawn on the new backdrop.
+    public func setAppearance(wallpaper: URL?, accent: RGB?) {
+        queue.async { [self] in
+            if renderer.wallpaperFile != nil { renderer.setWallpaper(wallpaper.flatMap { Backdrop.loadImage($0) }) }
+            renderer.accent = accent
+            guard started else { return }
+            renderer.displayStaticImages()
+            renderer.displayStaticText()
+            for job in jobs(gpuAvailable: gpuAvailable) { job.run() }
             renderer.dirty = [Rect(x0: 0, y0: 0, x1: renderer.width, y1: renderer.height)]
             flush()
         }

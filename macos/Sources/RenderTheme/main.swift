@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import TuringTheme
 
@@ -36,11 +37,32 @@ if args.count == 5, args[1] == "--text" {
     print(TextMetrics.describe(font: args[2], size: Int(args[3]) ?? 10, text: args[4]))
     exit(0)
 }
-guard args.count == 4 else {
-    FileHandle.standardError.write("usage: RenderTheme <res dir> <theme name> <out.png>\n".data(using: .utf8)!)
+// Options after the three paths:
+//   --wallpaper <image>        render with this image as the desktop wallpaper (themes with MACOS: WALLPAPER)
+//   --bake-background <image>  instead of rendering, compose the image into the theme's WALLPAPER file (the static
+//                              backdrop the Python app and a wallpaper-less Mac use)
+var options: [String: String] = [:]
+var i = 4
+while i + 1 < args.count, args[i].hasPrefix("--") { options[args[i]] = args[i + 1]; i += 2 }
+guard args.count >= 4, i == args.count else {
+    FileHandle.standardError.write(("usage: RenderTheme <res dir> <theme name> <out.png> [--wallpaper <image>] "
+        + "[--bake-background <image>]\n").data(using: .utf8)!)
     exit(2)
 }
 let renderer = try ThemeRenderer(themeName: args[2], resDir: URL(fileURLWithPath: args[1]))
+func image(_ path: String) -> CGImage {
+    guard let img = Backdrop.loadImage(URL(fileURLWithPath: path)) else { fatalError("cannot load \(path)") }
+    return img
+}
+if let src = options["--bake-background"] {
+    guard let file = renderer.wallpaperFile,
+          let bmp = Backdrop.compose(image(src), width: renderer.width, height: renderer.height, style: renderer.macos)
+    else { fatalError("theme has no MACOS: WALLPAPER") }
+    try bmp.writePNG(URL(fileURLWithPath: file))
+    print(file)
+    exit(0)
+}
+if let wp = options["--wallpaper"] { renderer.setWallpaper(image(wp)) }
 renderer.displayStaticImages()
 renderer.displayStaticText()
 ThemeStats(renderer: renderer, source: StaticSensors()).updateAll()

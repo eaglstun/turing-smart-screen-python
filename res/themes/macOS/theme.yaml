@@ -1,0 +1,350 @@
+---
+author: "@eaglstun"
+
+# macOS widget look: lock-screen clock over the wallpaper, frosted-glass panels, San Francisco text.
+# In the native macOS menu bar app (macos/), the MACOS section below swaps background.png for the current desktop
+# wallpaper, draws every font in the system font at the same weight and uses the system accent color.
+# The Python app ignores that section and shows the same layout with background.png, Roboto and blue.
+display:
+  DISPLAY_SIZE: 3.5"
+  DISPLAY_ORIENTATION: portrait
+  DISPLAY_RGB_LED: 10, 132, 255
+
+  MACOS:
+    WALLPAPER: background.png
+    SYSTEM_FONTS: true
+    ACCENT_COLOR: 10, 132, 255
+    WALLPAPER_DIM: 0.3
+    PANEL_BLUR: 10
+    PANEL_TINT: 24, 24, 28
+    PANEL_OPACITY: 0.62
+    PANEL_RADIUS: 18
+    PANEL_BORDER_OPACITY: 0.14
+    PANELS:
+      CPU: { X: 12, Y: 118, WIDTH: 142, HEIGHT: 112 }
+      GPU: { X: 166, Y: 118, WIDTH: 142, HEIGHT: 112 }
+      MEMORY: { X: 12, Y: 242, WIDTH: 142, HEIGHT: 112 }
+      DISK: { X: 166, Y: 242, WIDTH: 142, HEIGHT: 112 }
+      NETWORK: { X: 12, Y: 366, WIDTH: 296, HEIGHT: 102 }
+    TRACK_COLOR: 255, 255, 255
+    TRACK_OPACITY: 0.16
+    TRACKS:
+      CPU: { X: 26, Y: 198, WIDTH: 114, HEIGHT: 6 }
+      GPU: { X: 180, Y: 198, WIDTH: 114, HEIGHT: 6 }
+      MEMORY: { X: 26, Y: 322, WIDTH: 114, HEIGHT: 6 }
+      DISK: { X: 180, Y: 322, WIDTH: 114, HEIGHT: 6 }
+
+static_images:
+  BACKGROUND:
+    PATH: background.png
+    X: 0
+    Y: 0
+    WIDTH: 320
+    HEIGHT: 480
+
+static_text:
+  CPU_LABEL:
+    TEXT: CPU
+    X: 26
+    Y: 132
+    FONT: roboto/Roboto-Bold.ttf
+    FONT_SIZE: 13
+    FONT_COLOR: 10, 132, 255
+    BACKGROUND_IMAGE: background.png
+  GPU_LABEL:
+    TEXT: GPU
+    X: 180
+    Y: 132
+    FONT: roboto/Roboto-Bold.ttf
+    FONT_SIZE: 13
+    FONT_COLOR: 10, 132, 255
+    BACKGROUND_IMAGE: background.png
+  MEMORY_LABEL:
+    TEXT: Memory
+    X: 26
+    Y: 256
+    FONT: roboto/Roboto-Bold.ttf
+    FONT_SIZE: 13
+    FONT_COLOR: 10, 132, 255
+    BACKGROUND_IMAGE: background.png
+  MEMORY_USED_LABEL:
+    TEXT: Used
+    X: 26
+    Y: 334
+    FONT: roboto/Roboto-Regular.ttf
+    FONT_SIZE: 12
+    FONT_COLOR: 190, 190, 200
+    BACKGROUND_IMAGE: background.png
+  DISK_LABEL:
+    TEXT: Disk
+    X: 180
+    Y: 256
+    FONT: roboto/Roboto-Bold.ttf
+    FONT_SIZE: 13
+    FONT_COLOR: 10, 132, 255
+    BACKGROUND_IMAGE: background.png
+  DISK_FREE_LABEL:
+    TEXT: Free
+    X: 180
+    Y: 334
+    FONT: roboto/Roboto-Regular.ttf
+    FONT_SIZE: 12
+    FONT_COLOR: 190, 190, 200
+    BACKGROUND_IMAGE: background.png
+  NETWORK_LABEL:
+    TEXT: Network
+    X: 26
+    Y: 380
+    FONT: roboto/Roboto-Bold.ttf
+    FONT_SIZE: 13
+    FONT_COLOR: 10, 132, 255
+    BACKGROUND_IMAGE: background.png
+  DOWNLOAD_LABEL:
+    TEXT: Download
+    X: 26
+    Y: 400
+    FONT: roboto/Roboto-Regular.ttf
+    FONT_SIZE: 12
+    FONT_COLOR: 190, 190, 200
+    BACKGROUND_IMAGE: background.png
+  UPLOAD_LABEL:
+    TEXT: Upload
+    X: 180
+    Y: 400
+    FONT: roboto/Roboto-Regular.ttf
+    FONT_SIZE: 12
+    FONT_COLOR: 190, 190, 200
+    BACKGROUND_IMAGE: background.png
+
+STATS:
+  DATE:
+    INTERVAL: 1
+    DAY:
+      TEXT:
+        SHOW: True
+        FORMAT: EEEE, MMMM d
+        X: 160
+        Y: 20
+        ANCHOR: mt
+        FONT: roboto/Roboto-Medium.ttf
+        FONT_SIZE: 17
+        FONT_COLOR: 235, 235, 240
+        BACKGROUND_IMAGE: background.png
+    HOUR:
+      TEXT:
+        SHOW: True
+        FORMAT: h:mm
+        X: 160
+        Y: 46
+        ANCHOR: mt
+        FONT: roboto/Roboto-Bold.ttf
+        FONT_SIZE: 72
+        FONT_COLOR: 255, 255, 255
+        BACKGROUND_IMAGE: background.png
+
+  CPU:
+    PERCENTAGE:
+      INTERVAL: 1
+      TEXT:
+        SHOW: True
+        SHOW_UNIT: True
+        MIN_SIZE: 1
+        X: 26
+        Y: 154
+        FONT: roboto/Roboto-Bold.ttf
+        FONT_SIZE: 34
+        FONT_COLOR: 255, 255, 255
+        BACKGROUND_IMAGE: background.png
+      GRAPH:
+        SHOW: True
+        X: 26
+        Y: 198
+        WIDTH: 114
+        HEIGHT: 6
+        MIN_VALUE: 0
+        MAX_VALUE: 100
+        BAR_COLOR: 10, 132, 255
+        BAR_OUTLINE: False
+        BACKGROUND_IMAGE: background.png
+    TEMPERATURE:
+      INTERVAL: 5
+      TEXT:
+        SHOW: True
+        SHOW_UNIT: True
+        MIN_SIZE: 1
+        X: 26
+        Y: 212
+        FONT: roboto/Roboto-Regular.ttf
+        FONT_SIZE: 12
+        FONT_COLOR: 190, 190, 200
+        BACKGROUND_IMAGE: background.png
+    FREQUENCY:
+      INTERVAL: 2
+      TEXT:
+        SHOW: True
+        SHOW_UNIT: True
+        X: 140
+        Y: 212
+        ANCHOR: rt
+        FONT: roboto/Roboto-Regular.ttf
+        FONT_SIZE: 12
+        FONT_COLOR: 190, 190, 200
+        BACKGROUND_IMAGE: background.png
+
+  GPU:
+    INTERVAL: 2
+    PERCENTAGE:
+      TEXT:
+        SHOW: True
+        SHOW_UNIT: True
+        MIN_SIZE: 1
+        X: 180
+        Y: 154
+        FONT: roboto/Roboto-Bold.ttf
+        FONT_SIZE: 34
+        FONT_COLOR: 255, 255, 255
+        BACKGROUND_IMAGE: background.png
+      GRAPH:
+        SHOW: True
+        X: 180
+        Y: 198
+        WIDTH: 114
+        HEIGHT: 6
+        MIN_VALUE: 0
+        MAX_VALUE: 100
+        BAR_COLOR: 10, 132, 255
+        BAR_OUTLINE: False
+        BACKGROUND_IMAGE: background.png
+    TEMPERATURE:
+      TEXT:
+        SHOW: True
+        SHOW_UNIT: True
+        MIN_SIZE: 1
+        X: 180
+        Y: 212
+        FONT: roboto/Roboto-Regular.ttf
+        FONT_SIZE: 12
+        FONT_COLOR: 190, 190, 200
+        BACKGROUND_IMAGE: background.png
+    FREQUENCY:
+      TEXT:
+        SHOW: True
+        SHOW_UNIT: True
+        X: 294
+        Y: 212
+        ANCHOR: rt
+        FONT: roboto/Roboto-Regular.ttf
+        FONT_SIZE: 12
+        FONT_COLOR: 190, 190, 200
+        BACKGROUND_IMAGE: background.png
+
+  MEMORY:
+    INTERVAL: 5
+    VIRTUAL:
+      PERCENT_TEXT:
+        SHOW: True
+        SHOW_UNIT: True
+        MIN_SIZE: 1
+        X: 26
+        Y: 278
+        FONT: roboto/Roboto-Bold.ttf
+        FONT_SIZE: 34
+        FONT_COLOR: 255, 255, 255
+        BACKGROUND_IMAGE: background.png
+      GRAPH:
+        SHOW: True
+        X: 26
+        Y: 322
+        WIDTH: 114
+        HEIGHT: 6
+        MIN_VALUE: 0
+        MAX_VALUE: 100
+        BAR_COLOR: 10, 132, 255
+        BAR_OUTLINE: False
+        BACKGROUND_IMAGE: background.png
+      USED:
+        SHOW: True
+        SHOW_UNIT: True
+        MIN_SIZE: 1
+        X: 140
+        Y: 336
+        ANCHOR: rt
+        FONT: roboto/Roboto-Regular.ttf
+        FONT_SIZE: 12
+        FONT_COLOR: 190, 190, 200
+        BACKGROUND_IMAGE: background.png
+
+  DISK:
+    INTERVAL: 10
+    USED:
+      PERCENT_TEXT:
+        SHOW: True
+        SHOW_UNIT: True
+        MIN_SIZE: 1
+        X: 180
+        Y: 278
+        FONT: roboto/Roboto-Bold.ttf
+        FONT_SIZE: 34
+        FONT_COLOR: 255, 255, 255
+        BACKGROUND_IMAGE: background.png
+      GRAPH:
+        SHOW: True
+        X: 180
+        Y: 322
+        WIDTH: 114
+        HEIGHT: 6
+        MIN_VALUE: 0
+        MAX_VALUE: 100
+        BAR_COLOR: 10, 132, 255
+        BAR_OUTLINE: False
+        BACKGROUND_IMAGE: background.png
+    FREE:
+      TEXT:
+        SHOW: True
+        SHOW_UNIT: True
+        MIN_SIZE: 1
+        X: 294
+        Y: 336
+        ANCHOR: rt
+        FONT: roboto/Roboto-Regular.ttf
+        FONT_SIZE: 12
+        FONT_COLOR: 190, 190, 200
+        BACKGROUND_IMAGE: background.png
+
+  NET:
+    INTERVAL: 1
+    WLO:
+      DOWNLOAD:
+        TEXT:
+          SHOW: True
+          MIN_SIZE: 1
+          X: 26
+          Y: 416
+          FONT: roboto/Roboto-Bold.ttf
+          FONT_SIZE: 20
+          FONT_COLOR: 255, 255, 255
+          BACKGROUND_IMAGE: background.png
+        LINE_GRAPH:
+          SHOW: True
+          X: 26
+          Y: 444
+          WIDTH: 268
+          HEIGHT: 16
+          MIN_VALUE: 0
+          MAX_VALUE: 1000000000
+          AUTOSCALE: True
+          HISTORY_SIZE: 60
+          LINE_COLOR: 10, 132, 255
+          LINE_WIDTH: 2
+          AXIS: False
+          BACKGROUND_IMAGE: background.png
+      UPLOAD:
+        TEXT:
+          SHOW: True
+          MIN_SIZE: 1
+          X: 180
+          Y: 416
+          FONT: roboto/Roboto-Bold.ttf
+          FONT_SIZE: 20
+          FONT_COLOR: 255, 255, 255
+          BACKGROUND_IMAGE: background.png

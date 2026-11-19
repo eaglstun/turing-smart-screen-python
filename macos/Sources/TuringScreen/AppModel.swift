@@ -64,7 +64,8 @@ final class AppModel: ObservableObject {
     private var sink = DeviceSink()
     private var paused = false
     private var sleeping = false
-    private var watchdog: Timer?, previewTimer: Timer?
+    private var watchdog: Timer?, previewTimer: Timer?, appearanceTimer: Timer?
+    private var appearanceSignature = ""
 
     init() {
         if !themes.contains(where: { $0.name == themeName }), let first = themes.first { themeName = first.name }
@@ -85,6 +86,18 @@ final class AppModel: ObservableObject {
             ws.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 Task { @MainActor in self?.macDidWake() }
             }
+        }
+        // Themes with a MACOS section follow the wallpaper and accent color. There's no public notification for a
+        // wallpaper change, so poll (cheap) besides reacting to Space switches and system color changes.
+        ws.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.applyAppearance() }
+        }
+        NotificationCenter.default.addObserver(forName: NSColor.systemColorsDidChangeNotification, object: nil,
+                                               queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.applyAppearance() }
+        }
+        appearanceTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.applyAppearance() }
         }
         // Hotplug: retry the display every 2 s while it's missing
         watchdog = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
@@ -110,11 +123,23 @@ final class AppModel: ObservableObject {
             let m = try Monitor(themeName: themeName, resDir: res, sensors: sensors,
                                 config: StatsConfig(ethernet: ethernet, wifi: wifi, locale: .current), sink: sink)
             monitor = m
+            appearanceSignature = ""
+            applyAppearance()  // queued before start(), so the first frame already has the wallpaper
             sink.onDisconnect = { [weak self] in Task { @MainActor in self?.status = .searching } }
             connectAndStart(m)
         } catch {
             status = .error("Cannot load theme \(themeName)")
         }
+    }
+
+    /// Sends the wallpaper and accent color to the monitor if the theme uses them and they changed.
+    private func applyAppearance() {
+        guard let m = monitor, m.renderer.macos.isMap else { return }
+        let (url, accent) = (MacAppearance.wallpaperURL, MacAppearance.accent)
+        let signature = MacAppearance.signature(wallpaper: url, accent: accent)
+        guard signature != appearanceSignature else { return }
+        appearanceSignature = signature
+        m.setAppearance(wallpaper: url, accent: accent)
     }
 
     private func connectAndStart(_ m: Monitor) {
