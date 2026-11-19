@@ -3,7 +3,17 @@ import Foundation
 /// A screen rectangle (x0, y0 inclusive; x1, y1 exclusive).
 public struct Rect: Equatable {
     public var x0: Int, y0: Int, x1: Int, y1: Int
+    public init(x0: Int, y0: Int, x1: Int, y1: Int) { (self.x0, self.y0, self.x1, self.y1) = (x0, y0, x1, y1) }
     public var isEmpty: Bool { x1 <= x0 || y1 <= y0 }
+    /// Overlapping or touching.
+    public func touches(_ o: Rect) -> Bool {
+        let h = x0 <= o.x1 && o.x0 <= x1
+        let v = y0 <= o.y1 && o.y0 <= y1
+        return h && v
+    }
+    public func union(_ o: Rect) -> Rect {
+        Rect(x0: min(x0, o.x0), y0: min(y0, o.y0), x1: max(x1, o.x1), y1: max(y1, o.y1))
+    }
 }
 
 /// Draws a theme onto an in-memory screen, porting library/lcd/lcd_comm.py's Display* functions.
