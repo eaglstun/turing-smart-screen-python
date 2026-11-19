@@ -9,7 +9,7 @@ config:
   # Theme to use (located in res/themes)
   # Use the name of the folder as value
   # Choose a theme made for your screen size (see DISPLAY_SIZE inside theme.yaml)
-  THEME: SimpleBlueGauge
+  THEME: bash-dark-green
 
   # Hardware sensors reading
   # Choose the appropriate method for reading your hardware sensors:
@@ -23,7 +23,7 @@ config:
   # Linux/MacOS interfaces are named "eth0", "wlan0", "wlp1s0", "enp2s0"...
   # For Windows use the interfaces pretty name: "Ethernet 2", "Wi-Fi", ...
   # Leave the fields empty if the card does not exist on your setup
-  ETH: en0 # Ethernet Card (en0 = Wi-Fi: SimpleBlueGauge only has an ETH section)
+  ETH: '' # Ethernet Card
   WLO: en0 # Wi-Fi Card
 
   # CPU fan
