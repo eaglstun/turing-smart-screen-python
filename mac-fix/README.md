@@ -1,5 +1,20 @@
 # mac-fix: TURZX 3.5" rev A on macOS
 
+## Current setup (use this)
+
+`config.yaml` → `display.USB_BULK: true` (`library/lcd/lcd_comm_rev_a_usb.py`).
+The driver writes to the display's bulk OUT endpoint `0x03` with PyUSB/libusb
+instead of the serial device, as the Windows app does. It draws perfectly, with no
+hairlines. It needs libusb (`brew install libusb`) but no root: macOS refuses to
+detach its CDC driver without root, but claiming interface 1 works anyway. If
+raw USB can't be opened, the driver falls back to the serial port with
+`PACKET_FIX` (below). The approach comes from issue #7 (`marcelors27`, `amarok30`).
+
+Updates are still widened to the 32-px grid from a framebuffer, so every bitmap
+is exactly `w*h*2` bytes in whole 64-byte packets.
+
+The rest of this file covers the serial-port investigation and its fallback.
+
 This unit (VID `1a86`, PID `5722`, serial `USB35INCHIPSV2`) garbles every image
 sent by the stock rev A driver on macOS.
 
