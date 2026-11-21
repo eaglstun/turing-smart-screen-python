@@ -103,6 +103,19 @@ Some themes are already included for a quick start!
 <img src="https://user-images.githubusercontent.com/79225820/203648707-6f043068-5c9d-454d-9c0a-3d9ea02ece77.jpg" height="150" /> <img src="https://user-images.githubusercontent.com/121983479/210663324-994c987a-6489-4482-8883-db74ef566014.jpg" height="150" />
 <img src="https://user-images.githubusercontent.com/120036534/208128675-897f60cd-5647-40b7-b074-b56b67e775dd.png" height="150" /> <img src="https://user-images.githubusercontent.com/65172896/217549510-149913ac-ef4e-4f61-8f5e-6d768483a02c.png" height="150" /> and more... Share yours!
 
+## Native macOS menu bar app
+
+`macos/` holds a native Swift version of the system monitor for macOS 14+ on Apple silicon: a menu bar app with no Python, libusb or root. It reads the sensors itself (IOReport, SMC, IOAccelerator), renders the same `res/themes/*/theme.yaml` themes, and drives the 3.5" Turing (revision A) display over USB. The menu shows the connection status and a live preview, and Settings has the theme gallery, brightness, network interfaces and "Open at login".
+
+Build and install (needs Xcode):
+
+```sh
+macos/bundle.sh             # builds macos/build/TuringScreen.app
+macos/bundle.sh --install   # also copies it to ~/Applications and starts it
+```
+
+"Open at login" installs a per-user LaunchAgent (`~/Library/LaunchAgents/local.turingscreen.plist`) instead of a login item, so launchd also relaunches the app if it crashes. Quitting from the menu keeps it quit until the next login. Turning the setting on or off takes effect at the next login, and `bundle.sh --install` reloads the agent so the new build starts right away. The log is in `~/Library/Logs/TuringScreen.log`.
+
 ## Control the display from your Python projects
 
 If you don't want to use your screen for system monitoring, you can just use this project as a module from any Python code to do some simple operations on the display:

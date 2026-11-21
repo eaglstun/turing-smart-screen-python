@@ -1,5 +1,4 @@
 import AppKit
-import ServiceManagement
 import Foundation
 import SwiftUI
 import TuringDevice
@@ -40,12 +39,12 @@ final class AppModel: ObservableObject {
     /// Turn the panel off while the Mac or its displays sleep.
     @AppStorage("sleepWithMac") var sleepWithMac = true
 
-    /// Open at login (SMAppService); reads the system's state so it stays true to System Settings > Login Items.
+    /// Open at login via the LaunchAgent; reads the plist on disk, so it stays true to what bundle.sh installed.
     var launchAtLogin: Bool {
-        get { SMAppService.mainApp.status == .enabled }
+        get { LaunchAgent.isEnabled }
         set {
             do {
-                if newValue { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+                try LaunchAgent.setEnabled(newValue)
                 loginItemError = nil
             } catch {
                 loginItemError = error.localizedDescription
@@ -68,6 +67,7 @@ final class AppModel: ObservableObject {
     private var appearanceSignature = ""
 
     init() {
+        LaunchAgent.removeLegacyLoginItem()
         if !themes.contains(where: { $0.name == themeName }), let first = themes.first { themeName = first.name }
         restart()
         // However the app quits (menu, logout, script), finish the frame being sent: a half-sent bitmap leaves the

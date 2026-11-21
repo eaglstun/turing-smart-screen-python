@@ -29,6 +29,15 @@
 - LCD API usage example: `python simple-program.py`.
 - Windows packaging: `pyinstaller turing-system-monitor.spec` (bundles `main`, `configure`, `theme-editor`, `res/`, `external/`, `config.yaml`).
 
+## Native macOS App (`macos/`)
+
+- A Swift package that re-implements the monitor for macOS with no Python: `TuringSensors` (IOReport/SMC/IOAccelerator sensors), `TuringTheme` (renders `res/themes/*/theme.yaml` like `library/stats.py` + `library/lcd/lcd_comm.py`), `TuringDevice` (revision A over IOUSBHost), `TuringMonitor` (update loop) and `TuringScreen` (the SwiftUI menu bar app). It reads the same `res/` themes and fonts, so keep the theme schema compatible with both engines.
+- Build with `macos/build.sh` (wraps `swift build` with Xcode's toolchain; a swiftly toolchain earlier on `PATH` crashes against the macOS SDK). Package the app with `macos/bundle.sh`; `--install` copies it to `~/Applications/TuringScreen.app` and starts it.
+- Dev tools: `Probe` (prints every sensor reading as JSON), `RenderTheme` (one theme to PNG with fixed values), `MonitorCLI` (theme against live sensors, PNG or `--device`), `DeviceTest` (USB test pattern).
+- Theme parity check against the Python engine: `macos/Tests/make_golden.py` renders reference PNGs and `macos/Tests/compare.py` diffs the Swift renders against them (run from the repo root with the project venv).
+- "Open at login" is a per-user LaunchAgent, `~/Library/LaunchAgents/local.turingscreen.plist`, written and removed by `macos/Sources/TuringScreen/LaunchAgent.swift` (not an SMAppService login item; the app removes old ones at launch). `KeepAlive` relaunches it after a crash but not after Quit. The app only writes or removes the plist and never calls `launchctl`, which would start a second copy or get the running one killed; `bundle.sh --install` reloads the agent if the plist exists.
+- Only one copy may run at a time: two instances fight over the USB display. Stop a `.build/` binary before starting the installed app.
+
 ## Repository-Specific Conventions
 
 - License header expected in `.py` files: `SPDX-License-Identifier: GPL-3.0-or-later` (see `main.py`).
@@ -65,3 +74,4 @@
 - User config schema: `config.yaml`
 - Low-level API example: `simple-program.py`
 - Executable build spec: `turing-system-monitor.spec`
+- macOS app: `macos/Package.swift`, `macos/bundle.sh`, `macos/Sources/TuringScreen/`
