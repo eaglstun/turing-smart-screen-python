@@ -36,6 +36,7 @@
 - Dev tools: `Probe` (prints every sensor reading as JSON), `RenderTheme` (one theme to PNG with fixed values), `MonitorCLI` (theme against live sensors, PNG or `--device`), `DeviceTest` (USB test pattern).
 - Theme parity check against the Python engine: `macos/Tests/make_golden.py` renders reference PNGs and `macos/Tests/compare.py` diffs the Swift renders against them (run from the repo root with the project venv).
 - "Open at login" is a per-user LaunchAgent, `~/Library/LaunchAgents/local.turingscreen.plist`, written and removed by `macos/Sources/TuringScreen/LaunchAgent.swift` (not an SMAppService login item; the app removes old ones at launch). `KeepAlive` relaunches it after a crash but not after Quit. The app only writes or removes the plist and never calls `launchctl`, which would start a second copy or get the running one killed; `bundle.sh --install` reloads the agent if the plist exists.
+- `CPU.percentage()`, `CPU.frequency()` and `GPU.frequency()` return deltas since their previous call, and the display's update loop owns them. Anything else that needs live CPU/GPU activity (like the popover's per-core grid) uses its own `ChipActivity` instance, which keeps separate IOReport subscriptions and an SMC connection.
 - Only one copy may run at a time: two instances fight over the USB display. Stop a `.build/` binary before starting the installed app.
 
 ## Repository-Specific Conventions

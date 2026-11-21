@@ -57,7 +57,16 @@ final class AppModel: ObservableObject {
     @Published private(set) var status: Status = .searching
     @Published private(set) var preview: NSImage?
     @Published private(set) var themes: [ThemeInfo] = ThemeCatalog.themes()
-    @Published var previewActive = false { didSet { if previewActive { refreshPreview() } } }
+    @Published var previewActive = false {
+        didSet {
+            guard previewActive else { return }
+            refreshPreview()
+            _ = chip.sample()  // start a fresh interval: the first tick then shows the last second, not time since close
+        }
+    }
+    /// Per-core CPU and GPU activity for the popover, sampled each second while it's open.
+    @Published private(set) var activity: ChipActivity.Snapshot?
+    private let chip = ChipActivity()
 
     private var monitor: Monitor?
     private var sink = DeviceSink()
@@ -104,7 +113,11 @@ final class AppModel: ObservableObject {
             Task { @MainActor in self?.checkConnection() }
         }
         previewTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in if self?.previewActive == true { self?.refreshPreview() } }
+            Task { @MainActor in
+                guard let self, self.previewActive else { return }
+                self.refreshPreview()
+                self.activity = self.chip.sample()
+            }
         }
     }
 

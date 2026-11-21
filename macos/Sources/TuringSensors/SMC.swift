@@ -87,9 +87,9 @@ final class SMC {
         keys(prefix: prefix).filter { float($0) != nil }
     }
 
-    /// Average of plausible readings, skipping the parked-core placeholder.
+    /// Average of plausible readings, skipping parked cores: they read the 40.0 placeholder, 0, or values under 2°C.
     func average(_ keys: [String]) -> Double? {
-        let values = keys.compactMap { float($0) }.filter { $0 > 0 && $0 < 130 && $0 != Self.placeholder }
+        let values = keys.compactMap { float($0) }.filter { $0 >= 10 && $0 < 130 && $0 != Self.placeholder }
         return values.isEmpty ? nil : Double(values.reduce(0, +)) / Double(values.count)
     }
 }
