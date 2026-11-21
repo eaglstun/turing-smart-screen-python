@@ -29,6 +29,12 @@ struct StaticSensors: SensorSource {
     func uptimeSeconds() -> Int { 4294036 }
     func pingMS() -> Double? { 50 }
     func weather() -> (String?, String?, String?, String?, String?)? { ("17.5°C", "(17.2°C)", "@15:33", "Cloudy", "45%") }
+    /// A fixed M4 Max-like pattern (no Python equivalent): busy E cores, one P cluster powered down, one ramping.
+    func cpuCores() -> [CoreCluster] {
+        [CoreCluster(efficiency: true, active: [0.8, 0.55, 0.35, 0.2], poweredDown: false),
+         CoreCluster(efficiency: false, active: [0, 0, 0, 0, 0, 0], poweredDown: true),
+         CoreCluster(efficiency: false, active: [1, 0.85, 0.7, 0.5, 0.3, 0.1], poweredDown: false)]
+    }
 }
 
 let args = CommandLine.arguments

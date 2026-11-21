@@ -22,8 +22,15 @@ import Foundation
 ///       TRACK_COLOR: 255, 255, 255
 ///       TRACK_OPACITY: 0.16
 ///       TRACKS: { NAME: { X, Y, WIDTH, HEIGHT } ... }   # capsules under progress bars
+///       CORE_GRID:                  # one bar per CPU core in place of the CPU usage bar (see displayCoreGrid)
+///         X, Y, WIDTH, HEIGHT, BACKGROUND_IMAGE
+///         P_COLOR / E_COLOR: performance / efficiency cores (default ACCENT_COLOR, so they follow the system accent)
+///         GAP: 2                    # px between cores
+///         CLUSTER_GAP: 4            # px between clusters
+///         REPLACES_TRACK: CPU       # TRACKS entry left out of the live backdrop (still baked for the Python app)
 public enum Backdrop {
-    public static func compose(_ image: CGImage, width w: Int, height h: Int, style s: ThemeNode) -> Bitmap? {
+    public static func compose(_ image: CGImage, width w: Int, height h: Int, style s: ThemeNode,
+                               skippingTracks: Set<String> = []) -> Bitmap? {
         let ci = CIContext(options: [.workingColorSpace: CGColorSpace(name: CGColorSpace.sRGB)!])
         let extent = CGRect(x: 0, y: 0, width: w, height: h)
 
@@ -81,7 +88,7 @@ public enum Backdrop {
         let track = s.color("TRACK_COLOR", RGB(255, 255, 255))
         ctx.setFillColor(red: CGFloat(track.r) / 255, green: CGFloat(track.g) / 255, blue: CGFloat(track.b) / 255,
                          alpha: s.double("TRACK_OPACITY", 0.16))
-        for (_, t) in s["TRACKS"].entries {
+        for (name, t) in s["TRACKS"].entries where !skippingTracks.contains(name) {
             let r = rect(t), cr = min(r.width, r.height) / 2
             ctx.addPath(CGPath(roundedRect: r, cornerWidth: cr, cornerHeight: cr, transform: nil))
             ctx.fillPath()

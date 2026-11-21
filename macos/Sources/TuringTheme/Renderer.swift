@@ -36,6 +36,8 @@ public final class ThemeRenderer {
     public var accentKey: RGB? { RGB(macos["ACCENT_COLOR"]) }
     /// The system accent color (set by the app); nil keeps the theme's own color.
     public var accent: RGB?
+    /// The per-core CPU grid (`MACOS: CORE_GRID`), if the theme has one.
+    public var coreGrid: ThemeNode? { macos["CORE_GRID"].isMap ? macos["CORE_GRID"] : nil }
     private var textBBoxCache: [String: (Int, Int, Int, Int)] = [:]
 
     public var width: Int { screen.width }
@@ -92,7 +94,11 @@ public final class ThemeRenderer {
     /// Redraw everything afterwards.
     public func setWallpaper(_ image: CGImage?) {
         guard let file = wallpaperFile else { return }
-        imageCache[file] = image.flatMap { Backdrop.compose($0, width: width, height: height, style: macos) }
+        // The grid replaces a capsule track (kept in the YAML so a baked background still has it for Python)
+        let skip = Set([coreGrid?["REPLACES_TRACK"].string].compactMap { $0 })
+        imageCache[file] = image.flatMap {
+            Backdrop.compose($0, width: width, height: height, style: macos, skippingTracks: skip)
+        }
     }
 
     func image(_ path: String) -> Bitmap? {
@@ -172,6 +178,44 @@ public final class ThemeRenderer {
         bar.rectangle(x1, y1, x2, y2, fill: barColor, outline: barColor)
         if barOutline { bar.rectangle(0, 0, Double(w - 1), Double(h - 1), fill: nil, outline: barColor) }
         paste(bar, x: x, y: y)
+    }
+
+    /// Per-core CPU bars (macOS app only): cores side by side, `gap` px apart, `clusterGap` px between clusters, centered
+    /// in the box. A core's track is filled from the bottom by its activity; a powered-down cluster shows only a 1 px
+    /// baseline per core.
+    public func displayCoreGrid(_ clusters: [CoreCluster], x: Int, y: Int, width w: Int, height h: Int,
+                                performanceColor: RGB, efficiencyColor: RGB, trackColor: RGB, trackOpacity: Double,
+                                gap: Int, clusterGap: Int, backgroundImage: String?) {
+        guard w > 0, h > 0, x >= 0, y >= 0, x + w <= width, y + h <= height else { return }
+        var region = background(backgroundImage, color: RGB(0, 0, 0), x0: x, y0: y, x1: x + w, y1: y + h)
+        let n = clusters.map(\.active.count).reduce(0, +)
+        if n > 0 {
+            let gaps = (n - clusters.count) * gap + (clusters.count - 1) * clusterGap
+            let cell = max(1, (w - gaps) / n)
+            var cx = max(0, (w - cell * n - gaps) / 2)
+            let trackAlpha = UInt8(min(max(trackOpacity, 0), 1) * 255)
+            for (i, cluster) in clusters.enumerated() {
+                if i > 0 { cx += clusterGap - gap }
+                let color = ink(cluster.efficiency ? efficiencyColor : performanceColor)
+                for active in cluster.active {
+                    if cluster.poweredDown {
+                        for px in cx..<(cx + cell) { region.blend(px, h - 1, trackColor, trackAlpha) }
+                    } else {
+                        for py in 0..<h { for px in cx..<(cx + cell) { region.blend(px, py, trackColor, trackAlpha) } }
+                        // Fill from the bottom; the partial top row is blended by its coverage
+                        let filled = Double(h) * min(max(active.isFinite ? active : 0, 0), 1)
+                        let full = Int(filled)
+                        if full > 0 { region.fillRect(x0: cx, y0: h - full, x1: cx + cell - 1, y1: h - 1, color) }
+                        let partial = UInt8((filled - Double(full)) * 255)
+                        if full < h && partial > 0 {
+                            for px in cx..<(cx + cell) { region.blend(px, h - full - 1, color, partial) }
+                        }
+                    }
+                    cx += cell + gap
+                }
+            }
+        }
+        paste(region, x: x, y: y)
     }
 
     public func displayLineGraph(x: Int, y: Int, width w: Int, height h: Int, values: [Double], minValue: Double,

@@ -4,6 +4,7 @@ author: "@eaglstun"
 # macOS widget look: lock-screen clock over the wallpaper, frosted-glass panels, San Francisco text.
 # In the native macOS menu bar app (macos/), the MACOS section below swaps background.png for the current desktop
 # wallpaper, draws every font in the system font at the same weight and uses the system accent color.
+# It also replaces the CPU usage bar with a per-core grid (CORE_GRID).
 # The Python app ignores that section and shows the same layout with background.png, Roboto and blue.
 display:
   DISPLAY_SIZE: 3.5"
@@ -33,6 +34,17 @@ display:
       GPU: { X: 180, Y: 198, WIDTH: 114, HEIGHT: 6 }
       MEMORY: { X: 26, Y: 322, WIDTH: 114, HEIGHT: 6 }
       DISK: { X: 180, Y: 322, WIDTH: 114, HEIGHT: 6 }
+    # One bar per CPU core (E cores, then each P cluster) in place of the CPU usage bar. P cores use the accent color.
+    CORE_GRID:
+      X: 26
+      Y: 186
+      WIDTH: 114
+      HEIGHT: 18
+      E_COLOR: 235, 235, 240
+      GAP: 2
+      CLUSTER_GAP: 4
+      REPLACES_TRACK: CPU
+      BACKGROUND_IMAGE: background.png
 
 static_images:
   BACKGROUND:

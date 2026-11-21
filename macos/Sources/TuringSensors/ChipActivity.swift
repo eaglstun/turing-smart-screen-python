@@ -69,12 +69,18 @@ public final class ChipActivity {
         return (IORegistry.property(service, "gpu-core-count") as? NSNumber)?.intValue
     }()
 
+    /// CPU cores only, by cluster (E first, then P0, P1...), since the previous `cores()` or `sample()` call.
+    /// Cheaper than `sample()`: no GPU or SMC reads. Use one instance per caller, since both advance the same interval.
+    public func cores() -> [Cluster] {
+        let cores = (cpuSampler?.sample() ?? []).compactMap(Self.core)
+        return Dictionary(grouping: cores) { $0.kind == .efficiency ? "E" : "P\($0.cluster)" }
+            .map { Cluster(id: $0.key, cores: $0.value.sorted { $0.index < $1.index }) }
+            .sorted { ($0.id == "E" ? "" : $0.id) < ($1.id == "E" ? "" : $1.id) }
+    }
+
     /// Activity since the previous call (since `init` for the first one).
     public func sample() -> Snapshot {
-        let cores = (cpuSampler?.sample() ?? []).compactMap(Self.core)
-        let clusters = Dictionary(grouping: cores) { $0.kind == .efficiency ? "E" : "P\($0.cluster)" }
-            .map { Cluster(id: $0.key, cores: $0.value.sorted { $0.index < $1.index }) }
-            .sorted { ($0.id == "E" ? "" : $0.id) < ($1.id == "E" ? "" : $1.id) }  // E first, then P0, P1...
+        let clusters = cores()
 
         var gpuLoad = Double.nan
         if let service = IORegistry.service("IOAccelerator") {

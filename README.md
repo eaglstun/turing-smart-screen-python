@@ -114,6 +114,8 @@ macos/bundle.sh             # builds macos/build/TuringScreen.app
 macos/bundle.sh --install   # also copies it to ~/Applications and starts it
 ```
 
+The `macOS` theme uses the desktop wallpaper, San Francisco and the system accent color in this app, and replaces the CPU usage bar with a per-core grid (one bar per efficiency and performance core; a powered-down cluster shows as a dotted baseline). The Python app shows the same theme with its usual bar.
+
 "Open at login" installs a per-user LaunchAgent (`~/Library/LaunchAgents/local.turingscreen.plist`) instead of a login item, so launchd also relaunches the app if it crashes. Quitting from the menu keeps it quit until the next login. Turning the setting on or off takes effect at the next login, and `bundle.sh --install` reloads the agent so the new build starts right away. The log is in `~/Library/Logs/TuringScreen.log`.
 
 ## Control the display from your Python projects
