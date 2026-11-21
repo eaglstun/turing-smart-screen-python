@@ -87,7 +87,13 @@ final class SMC {
         keys(prefix: prefix).filter { float($0) != nil }
     }
 
-    /// Average of plausible readings, skipping parked cores: they read the 40.0 placeholder, 0, or values under 2°C.
+    /// A plausible temperature (°C), or nil for a parked sensor: those read the 40.0 placeholder, 0, or under 2°C.
+    func temperature(_ key: String) -> Double? {
+        guard let v = float(key), v >= 10, v < 130, v != Self.placeholder else { return nil }
+        return Double(v)
+    }
+
+    /// Average of plausible readings (see `temperature(_:)`).
     func average(_ keys: [String]) -> Double? {
         let values = keys.compactMap { float($0) }.filter { $0 >= 10 && $0 < 130 && $0 != Self.placeholder }
         return values.isEmpty ? nil : Double(values.reduce(0, +)) / Double(values.count)

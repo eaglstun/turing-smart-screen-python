@@ -39,6 +39,11 @@ public final class ChipActivity {
         public let cores: Int?
         /// Device utilization (%).
         public let load: Double
+        /// Renderer (fragment / pixel work) and tiler (geometry work) utilization (%).
+        public let rendererLoad: Double, tilerLoad: Double
+        /// One reading per GPU temperature sensor, in SMC key order; nil while a sensor is parked.
+        /// Sensors are spread over the GPU but Apple doesn't document which cores each one sits next to.
+        public let sensors: [(key: String, celsius: Double?)]
         /// Average active frequency (MHz); 0 if the GPU was off throughout.
         public let mhz: Double
         public let temperature: Double
@@ -57,6 +62,7 @@ public final class ChipActivity {
     private lazy var pKeys = smc?.temperatureSensors(prefix: "Tp") ?? []
     private lazy var eKeys = smc?.temperatureSensors(prefix: "Te") ?? []
     private lazy var gKeys = smc?.temperatureSensors(prefix: "Tg") ?? []
+    private lazy var gSensorKeys = Self.distinctSensors(gKeys)
 
     private static let idleStates: Set<String> = ["IDLE", "DOWN", "OFF"]
 
@@ -82,12 +88,12 @@ public final class ChipActivity {
     public func sample() -> Snapshot {
         let clusters = cores()
 
-        var gpuLoad = Double.nan
+        var perf: [String: Any] = [:]
         if let service = IORegistry.service("IOAccelerator") {
             defer { IOObjectRelease(service) }
-            let perf = IORegistry.property(service, "PerformanceStatistics") as? [String: Any]
-            gpuLoad = (perf?["Device Utilization %"] as? NSNumber)?.doubleValue ?? .nan
+            perf = IORegistry.property(service, "PerformanceStatistics") as? [String: Any] ?? [:]
         }
+        func percent(_ key: String) -> Double { (perf[key] as? NSNumber)?.doubleValue ?? .nan }
         var gpuMHz = Double.nan
         if let table = PMGR.tables["GPU"], let ph = gpuSampler?.sample().first(where: { $0.name == "GPUPH" }) {
             gpuMHz = PMGR.averageMHz(ph, table: table) ?? 0
@@ -95,8 +101,28 @@ public final class ChipActivity {
         return Snapshot(clusters: clusters,
                         performanceTemperature: smc?.average(pKeys) ?? .nan,
                         efficiencyTemperature: smc?.average(eKeys) ?? .nan,
-                        gpu: GPUActivity(cores: Self.gpuCoreCount, load: gpuLoad, mhz: gpuMHz,
-                                         temperature: smc?.average(gKeys) ?? .nan))
+                        gpu: GPUActivity(cores: Self.gpuCoreCount, load: percent("Device Utilization %"),
+                                         rendererLoad: percent("Renderer Utilization %"),
+                                         tilerLoad: percent("Tiler Utilization %"),
+                                         sensors: gSensorKeys.map { (key: $0, celsius: smc?.temperature($0)) },
+                                         mhz: gpuMHz, temperature: smc?.average(gKeys) ?? .nan))
+    }
+
+    /// The SMC lists each GPU sensor twice, under a key and the next one in 0-9A-Za-z order (Tg04/Tg05, Tg3Z/Tg3a):
+    /// the second reads the same or a constant offset higher (a derived hotspot value). Keeps the first of each pair;
+    /// keys without a partner are kept as they are.
+    static func distinctSensors(_ keys: [String]) -> [String] {
+        let digits = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
+        func next(_ key: String) -> String? {
+            guard let last = key.last, let i = digits.firstIndex(of: last), i + 1 < digits.count else { return nil }
+            return String(key.dropLast()) + String(digits[i + 1])
+        }
+        var result: [String] = [], i = 0
+        while i < keys.count {
+            result.append(keys[i])
+            i += (i + 1 < keys.count && keys[i + 1] == next(keys[i])) ? 2 : 1
+        }
+        return result
     }
 
     /// Parses "ECPU030" / "PCPU150": kind, cluster digit, core digit; residency shares; frequency.

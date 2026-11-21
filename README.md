@@ -105,7 +105,7 @@ Some themes are already included for a quick start!
 
 ## Native macOS menu bar app
 
-`macos/` holds a native Swift version of the system monitor for macOS 14+ on Apple silicon: a menu bar app with no Python, libusb or root. It reads the sensors itself (IOReport, SMC, IOAccelerator), renders the same `res/themes/*/theme.yaml` themes, and drives the 3.5" Turing (revision A) display over USB. The menu shows the connection status, a live preview, and per-core CPU activity (load and frequency for each efficiency and performance core, powered-down clusters, P/E temperatures) with GPU load, frequency and temperature, and Settings has the theme gallery, brightness, network interfaces and "Open at login".
+`macos/` holds a native Swift version of the system monitor for macOS 14+ on Apple silicon: a menu bar app with no Python, libusb or root. It reads the sensors itself (IOReport, SMC, IOAccelerator), renders the same `res/themes/*/theme.yaml` themes, and drives the 3.5" Turing (revision A) display over USB. The menu shows the connection status, a live preview, and per-core CPU activity (load and frequency for each efficiency and performance core, powered-down clusters, P/E temperatures) with the GPU's load split into renderer and tiler work, its frequency, and a strip of its temperature sensors (macOS reports GPU activity for the whole GPU, not per core), and Settings has the theme gallery, brightness, network interfaces and "Open at login".
 
 Build and install (needs Xcode):
 
