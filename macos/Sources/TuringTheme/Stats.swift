@@ -27,6 +27,23 @@ public protocol SensorSource {
     func pingMS() -> Double?
     /// temperature, felt, update time, description, humidity (nil = not configured)
     func weather() -> (String?, String?, String?, String?, String?)?
+    /// Per-core CPU activity by cluster, for the `MACOS: CORE_GRID` widget; empty if unavailable.
+    func cpuCores() -> [CoreCluster]
+}
+
+public extension SensorSource {
+    func cpuCores() -> [CoreCluster] { [] }
+}
+
+/// One CPU cluster: the share of the last interval each core was running (0...1), and whether the whole cluster was
+/// powered down.
+public struct CoreCluster {
+    public var efficiency: Bool
+    public var active: [Double]
+    public var poweredDown: Bool
+    public init(efficiency: Bool, active: [Double], poweredDown: Bool) {
+        (self.efficiency, self.active, self.poweredDown) = (efficiency, active, poweredDown)
+    }
 }
 
 public struct StatsConfig {
@@ -48,6 +65,8 @@ public final class ThemeStats {
 
     public init(renderer: ThemeRenderer, source: SensorSource, config: StatsConfig = StatsConfig()) {
         (self.renderer, self.source, self.config) = (renderer, source, config)
+        // The per-core grid takes the CPU usage bar's place in the macOS app
+        if renderer.coreGrid != nil { hidden.insert("CPU.PERCENTAGE.GRAPH") }
     }
 
     var stats: ThemeNode { renderer.theme["STATS"] }
@@ -194,7 +213,23 @@ public final class ThemeStats {
 
     // MARK: - Stats (stats.py classes)
 
-    public func cpuPercentage() { gauge(["CPU", "PERCENTAGE"], source.cpuPercent(), key: "cpu%", kind: .percent) }
+    public func cpuPercentage() {
+        gauge(["CPU", "PERCENTAGE"], source.cpuPercent(), key: "cpu%", kind: .percent)
+        coreGrid()
+    }
+
+    /// `display: MACOS: CORE_GRID`: one bar per CPU core, grouped by cluster, on the CPU usage interval.
+    func coreGrid() {
+        guard let g = renderer.coreGrid else { return }
+        let accent = renderer.accentKey ?? RGB(10, 132, 255)
+        renderer.displayCoreGrid(source.cpuCores(), x: g.int("X", 0), y: g.int("Y", 0), width: g.int("WIDTH", 0),
+                                 height: g.int("HEIGHT", 0), performanceColor: g.color("P_COLOR", accent),
+                                 efficiencyColor: g.color("E_COLOR", accent),
+                                 trackColor: renderer.macos.color("TRACK_COLOR", RGB(255, 255, 255)),
+                                 trackOpacity: renderer.macos.double("TRACK_OPACITY", 0.16),
+                                 gap: g.int("GAP", 2), clusterGap: g.int("CLUSTER_GAP", 4),
+                                 backgroundImage: renderer.themeFile(g["BACKGROUND_IMAGE"].string))
+    }
 
     public func cpuFrequency() {
         let ghz = source.cpuFrequencyMHz() / 1000, base = ["CPU", "FREQUENCY"]

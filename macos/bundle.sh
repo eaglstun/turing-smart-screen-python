@@ -1,7 +1,8 @@
 #!/bin/sh
 # Builds TuringScreen.app (menu bar app) into macos/build/: release binary, the 3.5" themes and only the fonts they
 # use, Info.plist with LSUIElement (no Dock icon), ad-hoc signature.
-# Usage: bundle.sh [--install]   --install also copies it to ~/Applications (quitting a running copy first)
+# Usage: bundle.sh [--install]   --install also copies it to ~/Applications (quitting a running copy first) and starts it,
+#                                 through its LaunchAgent if Open at login is on
 set -e
 cd "$(dirname "$0")"
 REPO="$(cd .. && pwd)"
@@ -61,5 +62,15 @@ if [ "$1" = "--install" ]; then
     rm -rf "$DEST"
     cp -R "$APP" "$DEST"
     echo "installed to $DEST"
-    open "$DEST"
+
+    # The app owns the LaunchAgent plist (Settings > Open at login). If it's on, reload the agent so launchd runs
+    # this build now and relaunches it after a crash; otherwise just open the app.
+    AGENT="$HOME/Library/LaunchAgents/local.turingscreen.plist"
+    if [ -f "$AGENT" ]; then
+        launchctl bootout "gui/$(id -u)/local.turingscreen" 2>/dev/null || true
+        launchctl bootstrap "gui/$(id -u)" "$AGENT"
+        echo "started by launch agent $AGENT"
+    else
+        open "$DEST"
+    fi
 fi

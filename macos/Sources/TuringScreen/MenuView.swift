@@ -16,6 +16,8 @@ struct MenuView: View {
 
             preview
 
+            ChipActivityView(snapshot: model.activity)
+
             VStack(alignment: .leading, spacing: 4) {
                 Label("Brightness", systemImage: "sun.max").font(.caption).foregroundStyle(.secondary)
                 Slider(value: Binding(get: { model.brightness }, set: { model.setBrightness($0) }), in: 0...100)

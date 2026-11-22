@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// A screen rectangle (x0, y0 inclusive; x1, y1 exclusive).
@@ -26,6 +27,17 @@ public final class ThemeRenderer {
     public var dirty: [Rect] = []
 
     private var imageCache: [String: Bitmap] = [:]
+
+    /// The theme's `display: MACOS:` section (macOS app only; see Backdrop).
+    public var macos: ThemeNode { theme["display"]["MACOS"] }
+    /// Theme image the desktop wallpaper replaces, if the theme asks for it.
+    public var wallpaperFile: String? { themeFile(macos["WALLPAPER"].string) }
+    /// The theme color drawn in the system accent color instead, if the theme asks for it.
+    public var accentKey: RGB? { RGB(macos["ACCENT_COLOR"]) }
+    /// The system accent color (set by the app); nil keeps the theme's own color.
+    public var accent: RGB?
+    /// The per-core CPU grid (`MACOS: CORE_GRID`), if the theme has one.
+    public var coreGrid: ThemeNode? { macos["CORE_GRID"].isMap ? macos["CORE_GRID"] : nil }
     private var textBBoxCache: [String: (Int, Int, Int, Int)] = [:]
 
     public var width: Int { screen.width }
@@ -61,7 +73,33 @@ public final class ThemeRenderer {
         return themeDir.appendingPathComponent(name).path
     }
 
-    func fontPath(_ name: String) -> String { fontsDir.appendingPathComponent(name).path }
+    /// A theme font file, or the system font standing in for it when the theme sets MACOS: SYSTEM_FONTS.
+    func fontPath(_ name: String) -> String {
+        let path = fontsDir.appendingPathComponent(name).path
+        guard macos.bool("SYSTEM_FONTS", false) else { return path }
+        if let spec = systemFontSpecs[path] { return spec }
+        let spec = Font.systemSpec(forFile: path) ?? "system:400"
+        systemFontSpecs[path] = spec
+        return spec
+    }
+    private var systemFontSpecs: [String: String] = [:]
+
+    /// Swaps the theme's accent color for the system one.
+    @inline(__always) func ink(_ c: RGB) -> RGB {
+        if let accent, let accentKey, c == accentKey { return accent }
+        return c
+    }
+
+    /// Replaces the theme's wallpaper image with `image` composed as a backdrop (nil restores the theme's file).
+    /// Redraw everything afterwards.
+    public func setWallpaper(_ image: CGImage?) {
+        guard let file = wallpaperFile else { return }
+        // The grid replaces a capsule track (kept in the YAML so a baked background still has it for Python)
+        let skip = Set([coreGrid?["REPLACES_TRACK"].string].compactMap { $0 })
+        imageCache[file] = image.flatMap {
+            Backdrop.compose($0, width: width, height: height, style: macos, skippingTracks: skip)
+        }
+    }
 
     func image(_ path: String) -> Bitmap? {
         if let b = imageCache[path] { return b }
@@ -116,15 +154,16 @@ public final class ThemeRenderer {
         }
         let l = max(box.0, 0), t = max(box.1, 0), r = min(box.2, width), b = min(box.3, height)
         guard r > l, b > t else { return }
-        var region = background(backgroundImage, color: backgroundColor, x0: l, y0: t, x1: r, y1: b)
-        layout.draw(into: &region, x: x - l, y: y - t, anchor: anchor, color: fontColor)
+        var region = background(backgroundImage, color: ink(backgroundColor), x0: l, y0: t, x1: r, y1: b)
+        layout.draw(into: &region, x: x - l, y: y - t, anchor: anchor, color: ink(fontColor))
         paste(region, x: l, y: t)
     }
 
     public func displayProgressBar(x: Int, y: Int, width w: Int, height h: Int, minValue: Double, maxValue: Double,
-                                   value: Double, barColor: RGB, barOutline: Bool, backgroundColor: RGB,
+                                   value: Double, barColor themeBarColor: RGB, barOutline: Bool, backgroundColor: RGB,
                                    backgroundImage: String?, reverse: Bool) {
         guard w > 0, h > 0, x + w <= width, y + h <= height, maxValue != minValue else { return }
+        let barColor = ink(themeBarColor)
         let v = min(max(value, minValue), maxValue)
         var bar = background(backgroundImage, color: backgroundColor, x0: x, y0: y, x1: x + w, y1: y + h)
         let frac = (v - minValue) / (maxValue - minValue)
@@ -139,6 +178,44 @@ public final class ThemeRenderer {
         bar.rectangle(x1, y1, x2, y2, fill: barColor, outline: barColor)
         if barOutline { bar.rectangle(0, 0, Double(w - 1), Double(h - 1), fill: nil, outline: barColor) }
         paste(bar, x: x, y: y)
+    }
+
+    /// Per-core CPU bars (macOS app only): cores side by side, `gap` px apart, `clusterGap` px between clusters, centered
+    /// in the box. A core's track is filled from the bottom by its activity; a powered-down cluster shows only a 1 px
+    /// baseline per core.
+    public func displayCoreGrid(_ clusters: [CoreCluster], x: Int, y: Int, width w: Int, height h: Int,
+                                performanceColor: RGB, efficiencyColor: RGB, trackColor: RGB, trackOpacity: Double,
+                                gap: Int, clusterGap: Int, backgroundImage: String?) {
+        guard w > 0, h > 0, x >= 0, y >= 0, x + w <= width, y + h <= height else { return }
+        var region = background(backgroundImage, color: RGB(0, 0, 0), x0: x, y0: y, x1: x + w, y1: y + h)
+        let n = clusters.map(\.active.count).reduce(0, +)
+        if n > 0 {
+            let gaps = (n - clusters.count) * gap + (clusters.count - 1) * clusterGap
+            let cell = max(1, (w - gaps) / n)
+            var cx = max(0, (w - cell * n - gaps) / 2)
+            let trackAlpha = UInt8(min(max(trackOpacity, 0), 1) * 255)
+            for (i, cluster) in clusters.enumerated() {
+                if i > 0 { cx += clusterGap - gap }
+                let color = ink(cluster.efficiency ? efficiencyColor : performanceColor)
+                for active in cluster.active {
+                    if cluster.poweredDown {
+                        for px in cx..<(cx + cell) { region.blend(px, h - 1, trackColor, trackAlpha) }
+                    } else {
+                        for py in 0..<h { for px in cx..<(cx + cell) { region.blend(px, py, trackColor, trackAlpha) } }
+                        // Fill from the bottom; the partial top row is blended by its coverage
+                        let filled = Double(h) * min(max(active.isFinite ? active : 0, 0), 1)
+                        let full = Int(filled)
+                        if full > 0 { region.fillRect(x0: cx, y0: h - full, x1: cx + cell - 1, y1: h - 1, color) }
+                        let partial = UInt8((filled - Double(full)) * 255)
+                        if full < h && partial > 0 {
+                            for px in cx..<(cx + cell) { region.blend(px, h - full - 1, color, partial) }
+                        }
+                    }
+                    cx += cell + gap
+                }
+            }
+        }
+        paste(region, x: x, y: y)
     }
 
     public func displayLineGraph(x: Int, y: Int, width w: Int, height h: Int, values: [Double], minValue: Double,
@@ -160,8 +237,9 @@ public final class ThemeRenderer {
             let c = min(max(v, lo), hi)
             points.append((Double(points.count) * step, Double(h) - (c - lo) * yScale))
         }
-        graph.polyline(points, width: lineWidth, lineColor)
+        graph.polyline(points, width: lineWidth, ink(lineColor))
         if axis {
+            let axisColor = ink(axisColor)
             graph.line1(0, h - 1, w - 1, h - 1, axisColor)
             graph.line1(0, 0, 0, h - 1, axisColor)
             graph.line1(0, 0, 1, 0, axisColor)
@@ -193,6 +271,7 @@ public final class ThemeRenderer {
                                          backgroundColor: RGB, backgroundImage: String?, customBBox: [Int],
                                          textOffset: [Int], barBackgroundColor: RGB, drawBarBackground: Bool,
                                          barDecoration: String) {
+        let (fontColor, barColor, barBackgroundColor) = (ink(fontColor), ink(barColor), ink(barBackgroundColor))
         var (start, end) = (angleStart, angleEnd)
         if start.truncatingRemainder(dividingBy: 361) == end.truncatingRemainder(dividingBy: 361) {
             if clockwise { start += 0.1 } else { end += 0.1 }

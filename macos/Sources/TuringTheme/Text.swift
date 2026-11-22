@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import CoreText
 import Foundation
@@ -9,21 +10,70 @@ final class Font {
     let ascender: Int, descender: Int
     /// The font's Unicode character map, read from its 'cmap' table.
     let cmap: CMap?
+    /// Snap glyph tops and bottoms to the nearest pixel like FreeType hinting (font files, to match Pillow).
+    /// The system font is drawn unhinted, so its ink boxes round outward instead or strokes get clipped.
+    let hinted: Bool
 
     private static var cache: [String: Font] = [:]
 
+    /// `path` is a font file, or a system font spec from `systemSpec(forFile:)` ("system:<weight>[:mono]").
     static func load(_ path: String, size: Int) -> Font? {
         let key = "\(path)#\(size)"
         if let f = cache[key] { return f }
-        guard let provider = CGDataProvider(url: URL(fileURLWithPath: path) as CFURL),
-              let cg = CGFont(provider) else { return nil }
-        let f = Font(CTFontCreateWithGraphicsFont(cg, CGFloat(size), nil, nil))
+        let font: CTFont
+        if path.hasPrefix("system:") {
+            font = systemFont(path, size: CGFloat(size))
+        } else {
+            guard let provider = CGDataProvider(url: URL(fileURLWithPath: path) as CFURL),
+                  let cg = CGFont(provider) else { return nil }
+            font = CTFontCreateWithGraphicsFont(cg, CGFloat(size), nil, nil)
+        }
+        let f = Font(font, hinted: !path.hasPrefix("system:"))
         cache[key] = f
         return f
     }
 
-    private init(_ font: CTFont) {
+    // MARK: - System font (San Francisco)
+
+    /// The system font that stands in for a font file: same weight (OS/2 usWeightClass), SF Mono if the file is
+    /// monospaced (post isFixedPitch). Returns nil if the file can't be read.
+    static func systemSpec(forFile path: String) -> String? {
+        guard let provider = CGDataProvider(url: URL(fileURLWithPath: path) as CFURL), let cg = CGFont(provider)
+        else { return nil }
+        var weight = 400, mono = false
+        if let os2 = cg.table(for: CTFontTableTag(kCTFontTableOS2)) as Data?, os2.count >= 6 {
+            weight = Int(os2[4]) << 8 | Int(os2[5])
+        }
+        if let post = cg.table(for: CTFontTableTag(kCTFontTablePost)) as Data?, post.count >= 16 {
+            mono = post[12...15].contains { $0 != 0 }
+        }
+        return "system:\(weight)" + (mono ? ":mono" : "")
+    }
+
+    private static func systemFont(_ spec: String, size: CGFloat) -> CTFont {
+        let parts = spec.split(separator: ":")
+        let w = parts.count > 1 ? Int(parts[1]) ?? 400 : 400
+        let weight: NSFont.Weight
+        switch w {
+        case ..<150: weight = .ultraLight
+        case ..<250: weight = .thin
+        case ..<350: weight = .light
+        case ..<450: weight = .regular
+        case ..<550: weight = .medium
+        case ..<650: weight = .semibold
+        case ..<750: weight = .bold
+        case ..<850: weight = .heavy
+        default: weight = .black
+        }
+        // Proportional text gets tabular figures so changing numbers don't shift sideways
+        let ns = parts.contains("mono") ? NSFont.monospacedSystemFont(ofSize: size, weight: weight)
+            : NSFont.monospacedDigitSystemFont(ofSize: size, weight: weight)
+        return ns as CTFont
+    }
+
+    private init(_ font: CTFont, hinted: Bool) {
         ctFont = font
+        self.hinted = hinted
         cmap = (CTFontCopyTable(font, CTFontTableTag(kCTFontTableCmap), []) as Data?).flatMap(CMap.init)
         // FreeType's face ascender/descender: OS/2 typo metrics when the font sets USE_TYPO_METRICS (fsSelection
         // bit 7), otherwise 'hhea' (CoreText may pick differently). Scaled size metrics round outward to pixels.
@@ -137,7 +187,11 @@ struct TextLayout {
             guard !r.isEmpty else { continue }
             xMin = min(xMin, px + Int(r.minX.rounded(.down))); xMax = max(xMax, px + Int(r.maxX.rounded(.up)))
             // FreeType hinting snaps vertical extents (cap height, overshoots, baseline) to the pixel grid
-            yMin = min(yMin, Int(r.minY.rounded())); yMax = max(yMax, Int(r.maxY.rounded()))
+            if font.hinted {
+                yMin = min(yMin, Int(r.minY.rounded())); yMax = max(yMax, Int(r.maxY.rounded()))
+            } else {
+                yMin = min(yMin, Int(r.minY.rounded(.down))); yMax = max(yMax, Int(r.maxY.rounded(.up)))
+            }
         }
         (self.glyphs, originX, self.position) = (glyphs, origins, position)
         (self.xMin, self.xMax, self.yMin, self.yMax) = (xMin, xMax, yMin, yMax)

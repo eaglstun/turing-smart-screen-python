@@ -6,6 +6,8 @@ import TuringTheme
 // Usage: MonitorCLI <res dir> <theme> <seconds> [out.png | --device] [wifi interface]
 //   out.png   record updates in memory (no display) and save the final screen
 //   --device  draw on the USB display
+// Environment: WALLPAPER=<image>  2 s in, switch to this wallpaper and an orange accent color (themes with a MACOS
+//              section), to exercise the app's live appearance change
 
 /// Applies updates to an in-memory copy of the screen (what the display would show) and counts them.
 final class RecordingSink: DisplaySink {
@@ -43,7 +45,13 @@ var usage = rusage(); getrusage(RUSAGE_SELF, &usage)
 let cpu0 = Double(usage.ru_utime.tv_sec + usage.ru_stime.tv_sec) + Double(usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6
 
 monitor.start()
-Thread.sleep(forTimeInterval: seconds)
+if let wallpaper = ProcessInfo.processInfo.environment["WALLPAPER"], seconds > 2 {
+    Thread.sleep(forTimeInterval: 2)
+    monitor.setAppearance(wallpaper: URL(fileURLWithPath: wallpaper), accent: RGB(255, 149, 0))
+    Thread.sleep(forTimeInterval: seconds - 2)
+} else {
+    Thread.sleep(forTimeInterval: seconds)
+}
 monitor.stop()
 
 getrusage(RUSAGE_SELF, &usage)

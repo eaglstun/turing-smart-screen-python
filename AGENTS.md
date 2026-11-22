@@ -1,10 +1,12 @@
 # AGENTS.md
 
 ## Project Goal
+
 - Python system monitor for USB-C/TFT displays (Turing, XuanFang, Kipye, WeAct) with 3 usage modes: main app (`main.py`), config tool (`configure.py`), and theme editor (`theme-editor.py`).
 - The design clearly separates **sensor collection**, **theme rendering**, and **hardware driver** so multiple display revisions can be supported without changing business logic.
 
 ## Essential Architecture (read before coding)
+
 - **Application entry point**: `main.py` orchestrates initialization, scheduler loop, tray icon, and OS signals.
 - **Central config**: `library/config.py` loads `config.yaml`, then `res/themes/<THEME>/theme.yaml` with fallback to defaults.
 - **LCD driver factory**: `library/display.py` selects the implementation via `REVISION` (`A/B/C/D/TUR_USB/WEACT_A/WEACT_B/SIMU`).
@@ -13,19 +15,33 @@
 - **Scheduling**: `library/scheduler.py` uses decorators (`@schedule`, `@async_job`) plus a queue to serialize writes to the display.
 
 ## Data Flow (practical)
+
 - `config.yaml` -> selects hardware/theme/options.
 - `library/stats.py` -> retrieves values based on `HW_SENSORS` (`AUTO`, `PYTHON`, `LHM`, `STUB`).
 - `library/display.py` + `LcdComm*` driver -> converts to image/text and pushes to the display.
 - Dev mode without hardware: `REVISION: SIMU` writes a capture (`screencap.png`) through `library/lcd/lcd_simulated.py`.
 
 ## Critical Developer Workflows
+
 - Install dependencies: `pip install -r requirements.txt`.
 - Run app: `python main.py`.
 - Configure via GUI: `python configure.py`.
 - LCD API usage example: `python simple-program.py`.
 - Windows packaging: `pyinstaller turing-system-monitor.spec` (bundles `main`, `configure`, `theme-editor`, `res/`, `external/`, `config.yaml`).
 
+## Native macOS App (`macos/`)
+
+- A Swift package that re-implements the monitor for macOS with no Python: `TuringSensors` (IOReport/SMC/IOAccelerator sensors), `TuringTheme` (renders `res/themes/*/theme.yaml` like `library/stats.py` + `library/lcd/lcd_comm.py`), `TuringDevice` (revision A over IOUSBHost), `TuringMonitor` (update loop) and `TuringScreen` (the SwiftUI menu bar app). It reads the same `res/` themes and fonts, so keep the theme schema compatible with both engines.
+- Build with `macos/build.sh` (wraps `swift build` with Xcode's toolchain; a swiftly toolchain earlier on `PATH` crashes against the macOS SDK). Package the app with `macos/bundle.sh`; `--install` copies it to `~/Applications/TuringScreen.app` and starts it.
+- Dev tools: `Probe` (prints every sensor reading as JSON), `RenderTheme` (one theme to PNG with fixed values), `MonitorCLI` (theme against live sensors, PNG or `--device`), `DeviceTest` (USB test pattern).
+- Theme parity check against the Python engine: `macos/Tests/make_golden.py` renders reference PNGs and `macos/Tests/compare.py` diffs the Swift renders against them (run from the repo root with the project venv).
+- "Open at login" is a per-user LaunchAgent, `~/Library/LaunchAgents/local.turingscreen.plist`, written and removed by `macos/Sources/TuringScreen/LaunchAgent.swift` (not an SMAppService login item; the app removes old ones at launch). `KeepAlive` relaunches it after a crash but not after Quit. The app only writes or removes the plist and never calls `launchctl`, which would start a second copy or get the running one killed; `bundle.sh --install` reloads the agent if the plist exists.
+- `CPU.percentage()`, `CPU.frequency()` and `GPU.frequency()` return deltas since their previous call, and the display's update loop owns them. Anything else that needs live CPU/GPU activity (like the popover's per-core grid) uses its own `ChipActivity` instance, which keeps separate IOReport subscriptions and an SMC connection.
+- Swift-only theme features live in a theme's `display: MACOS:` section, which the Python app ignores (see `macos/Sources/TuringTheme/Backdrop.swift` for the keys). `CORE_GRID` draws per-core CPU bars in place of `CPU.PERCENTAGE.GRAPH`, fed by `SensorSource.cpuCores()`. Its `REPLACES_TRACK` leaves that capsule out of the live backdrop only, so `RenderTheme --bake-background` still bakes it for Python. Changes to the theme engine should keep the 40 reference themes rendering byte-identically: render them with `RenderTheme` before and after, and diff the PNGs.
+- Only one copy may run at a time: two instances fight over the USB display. Stop a `.build/` binary before starting the installed app.
+
 ## Repository-Specific Conventions
+
 - License header expected in `.py` files: `SPDX-License-Identifier: GPL-3.0-or-later` (see `main.py`).
 - YAML-first configuration: avoid hardcoding; add options in `config.yaml` first, then load them in `library/config.py`.
 - The project is multi-platform (Windows, macOS, Linux): new code must remain compatible across these platforms.
@@ -35,6 +51,7 @@
 - UI rendering depends on theme keys (example structure in `res/themes/default.yaml`): keep schema compatibility.
 
 ## PR Change Policy
+
 - Keep pull request changes as limited and focused as possible; avoid broad refactors unless explicitly requested.
 - This repository has many users, forks, and open PRs: prefer minimal diffs to reduce merge conflicts and downstream breakage.
 - If changes touch different topics, split them into multiple PRs (one topic per PR).
@@ -43,12 +60,14 @@
 - Breaking changes are unlikely to be merged; maintain backward compatibility unless a maintainer explicitly approves a compatibility break.
 
 ## Important External Integrations
+
 - `pyserial` for serial displays (A/B/C/D, WeAct), `pyusb` for Turing USB models.
 - Advanced Windows sensors: `pythonnet` + DLLs in `external/LibreHardwareMonitor/`.
 - System metrics: `psutil`, `GPUtil`, `pyamdgpuinfo`/`pyadl` depending on OS/GPU.
 - UI stack: `pystray` (tray), `tkinter` + `sv-ttk` (config GUI), `Pillow`/`numpy` (images).
 
 ## Reference Files for Changes
+
 - Runtime orchestration: `main.py`
 - Config/theme loading: `library/config.py`
 - Display selection and dimensions: `library/display.py`
@@ -57,5 +76,4 @@
 - User config schema: `config.yaml`
 - Low-level API example: `simple-program.py`
 - Executable build spec: `turing-system-monitor.spec`
-
-
+- macOS app: `macos/Package.swift`, `macos/bundle.sh`, `macos/Sources/TuringScreen/`

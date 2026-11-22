@@ -1,5 +1,4 @@
 import AppKit
-import ServiceManagement
 import Foundation
 import SwiftUI
 import TuringDevice
@@ -40,12 +39,12 @@ final class AppModel: ObservableObject {
     /// Turn the panel off while the Mac or its displays sleep.
     @AppStorage("sleepWithMac") var sleepWithMac = true
 
-    /// Open at login (SMAppService); reads the system's state so it stays true to System Settings > Login Items.
+    /// Open at login via the LaunchAgent; reads the plist on disk, so it stays true to what bundle.sh installed.
     var launchAtLogin: Bool {
-        get { SMAppService.mainApp.status == .enabled }
+        get { LaunchAgent.isEnabled }
         set {
             do {
-                if newValue { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+                try LaunchAgent.setEnabled(newValue)
                 loginItemError = nil
             } catch {
                 loginItemError = error.localizedDescription
@@ -58,15 +57,26 @@ final class AppModel: ObservableObject {
     @Published private(set) var status: Status = .searching
     @Published private(set) var preview: NSImage?
     @Published private(set) var themes: [ThemeInfo] = ThemeCatalog.themes()
-    @Published var previewActive = false { didSet { if previewActive { refreshPreview() } } }
+    @Published var previewActive = false {
+        didSet {
+            guard previewActive else { return }
+            refreshPreview()
+            _ = chip.sample()  // start a fresh interval: the first tick then shows the last second, not time since close
+        }
+    }
+    /// Per-core CPU and GPU activity for the popover, sampled each second while it's open.
+    @Published private(set) var activity: ChipActivity.Snapshot?
+    private let chip = ChipActivity()
 
     private var monitor: Monitor?
     private var sink = DeviceSink()
     private var paused = false
     private var sleeping = false
-    private var watchdog: Timer?, previewTimer: Timer?
+    private var watchdog: Timer?, previewTimer: Timer?, appearanceTimer: Timer?
+    private var appearanceSignature = ""
 
     init() {
+        LaunchAgent.removeLegacyLoginItem()
         if !themes.contains(where: { $0.name == themeName }), let first = themes.first { themeName = first.name }
         restart()
         // However the app quits (menu, logout, script), finish the frame being sent: a half-sent bitmap leaves the
@@ -86,12 +96,28 @@ final class AppModel: ObservableObject {
                 Task { @MainActor in self?.macDidWake() }
             }
         }
+        // Themes with a MACOS section follow the wallpaper and accent color. There's no public notification for a
+        // wallpaper change, so poll (cheap) besides reacting to Space switches and system color changes.
+        ws.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.applyAppearance() }
+        }
+        NotificationCenter.default.addObserver(forName: NSColor.systemColorsDidChangeNotification, object: nil,
+                                               queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.applyAppearance() }
+        }
+        appearanceTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.applyAppearance() }
+        }
         // Hotplug: retry the display every 2 s while it's missing
         watchdog = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.checkConnection() }
         }
         previewTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in if self?.previewActive == true { self?.refreshPreview() } }
+            Task { @MainActor in
+                guard let self, self.previewActive else { return }
+                self.refreshPreview()
+                self.activity = self.chip.sample()
+            }
         }
     }
 
@@ -110,11 +136,23 @@ final class AppModel: ObservableObject {
             let m = try Monitor(themeName: themeName, resDir: res, sensors: sensors,
                                 config: StatsConfig(ethernet: ethernet, wifi: wifi, locale: .current), sink: sink)
             monitor = m
+            appearanceSignature = ""
+            applyAppearance()  // queued before start(), so the first frame already has the wallpaper
             sink.onDisconnect = { [weak self] in Task { @MainActor in self?.status = .searching } }
             connectAndStart(m)
         } catch {
             status = .error("Cannot load theme \(themeName)")
         }
+    }
+
+    /// Sends the wallpaper and accent color to the monitor if the theme uses them and they changed.
+    private func applyAppearance() {
+        guard let m = monitor, m.renderer.macos.isMap else { return }
+        let (url, accent) = (MacAppearance.wallpaperURL, MacAppearance.accent)
+        let signature = MacAppearance.signature(wallpaper: url, accent: accent)
+        guard signature != appearanceSignature else { return }
+        appearanceSignature = signature
+        m.setAppearance(wallpaper: url, accent: accent)
     }
 
     private func connectAndStart(_ m: Monitor) {

@@ -5,6 +5,8 @@ import TuringTheme
 /// Live readings from TuringSensors in the shape the theme engine expects (library/sensors/sensors_python.py).
 public final class LiveSensors: SensorSource {
     public var pingHost: String
+    /// Own instance: its per-core interval runs from one CORE_GRID update to the next.
+    private let chip = ChipActivity()
 
     public init(pingHost: String = "8.8.8.8") { self.pingHost = pingHost }
 
@@ -13,6 +15,11 @@ public final class LiveSensors: SensorSource {
     public func cpuLoad() -> (Double, Double, Double) { CPU.load() }
     public func cpuTemperature() -> Double { CPU.temperature() }
     public func cpuFanPercent() -> Double { .nan }
+    public func cpuCores() -> [CoreCluster] {
+        chip.cores().map { c in
+            CoreCluster(efficiency: c.id == "E", active: c.cores.map(\.active), poweredDown: c.poweredDown)
+        }
+    }
 
     public func gpuStats() -> (Double, Double, Double, Double, Double) {
         let s = GPU.stats()
